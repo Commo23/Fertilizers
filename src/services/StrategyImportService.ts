@@ -355,7 +355,9 @@ class StrategyImportService {
           const effectiveVolatility = strategyDetail?.effectiveVolatility || component.volatility;
 const rawRealOptionPrice = strategyDetail?.calculatedPrice || periodResult.optionPrices?.[componentIndex]?.price;
           const realOptionPrice = rawRealOptionPrice != null ? roundPrice(rawRealOptionPrice) : undefined;
-          const exportDomRate = (periodResult as { marketData?: { domesticRate?: number } }).marketData?.domesticRate ?? (params.domesticRate !== undefined ? params.domesticRate : params.interestRate);
+          const exportDomRate =
+            (periodResult as { marketData?: { domesticRate?: number } }).marketData?.domesticRate ??
+            params.domesticRate;
 
           const instrument: HedgingInstrument = {
             id: instrumentId,

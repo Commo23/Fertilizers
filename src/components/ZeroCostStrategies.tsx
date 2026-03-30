@@ -9,7 +9,10 @@ import { Plus } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { PricingService } from '@/services/PricingService'; // ✅ Utiliser PricingService
+import {
+  calculateBlack76Price,
+  calculateVanillaSpotMcOrBs,
+} from '@/services/PricingService';
 
 interface ZeroCostStrategiesProps {
   spotPrice: number;
@@ -27,45 +30,17 @@ interface ZeroCostStrategiesProps {
  */
 const calculateOptionPrice = (
   type: 'call' | 'put',
-  S: number,       // Spot price
-  K: number,       // Strike price
-  r: number,       // Risk-free rate (as decimal, e.g., 0.05 for 5%)
-  t: number,       // Time to maturity in years
-  sigma: number,   // Volatility (as decimal, e.g., 0.2 for 20%)
-  useMonteCarlo: boolean = false // ✅ Support Monte Carlo
+  S: number,
+  K: number,
+  r: number,
+  t: number,
+  sigma: number,
+  useMonteCarlo: boolean = false
 ): number => {
-  // ✅ Calculer forward price (comme Strategy Builder)
-  // Pour commodities: F = S * exp(r * t) car b = r (pas de dividend yield)
-  const forward = S * Math.exp(r * t);
-  
   if (useMonteCarlo) {
-    // ✅ Utiliser Monte Carlo via PricingService (comme Strategy Builder)
-    return PricingService.calculateVanillaOptionMonteCarlo(
-      type,
-      S, // Spot pour Monte Carlo
-      K,
-      r, // r_d
-      0, // r_f = 0 pour commodities
-      t,
-      sigma,
-      1000 // Simulations
-    );
+    return calculateVanillaSpotMcOrBs(type, S, K, r, 0, t, sigma, 'monte-carlo');
   }
-  
-  // ✅ Black-Scholes avec FORWARD (comme Strategy Builder ligne 3009)
-  const d1 = (Math.log(forward / K) + (sigma * sigma / 2) * t) / (sigma * Math.sqrt(t));
-  const d2 = d1 - sigma * Math.sqrt(t);
-  
-  // Utiliser PricingService.erf pour cohérence
-  const Nd1 = (1 + PricingService.erf(d1 / Math.sqrt(2))) / 2;
-  const Nd2 = (1 + PricingService.erf(d2 / Math.sqrt(2))) / 2;
-  
-  // ✅ Utiliser FORWARD au lieu de SPOT (comme Strategy Builder)
-  if (type === 'call') {
-    return forward * Nd1 - K * Math.exp(-r * t) * Nd2;
-  } else { // put
-    return K * Math.exp(-r * t) * (1 - Nd2) - forward * (1 - Nd1);
-  }
+  return Math.max(0, calculateBlack76Price(type, S, K, r, r, t, sigma));
 };
 
 /**

@@ -8,36 +8,37 @@
 @tailwind utilities;
 
 @layer base {
+  /* Light: même ADN que la landing (lime #C4D82E), fond clair lisible */
   :root {
-    --background: 220 33% 98%;
-    --foreground: 222 47% 10%;
+    --background: 220 14% 97%;
+    --foreground: 224 71% 6%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 224 71% 8%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 224 71% 8%;
 
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 67 69% 46%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 214 32% 91%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 224 71% 10%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 220 14% 94%;
+    --muted-foreground: 220 9% 40%;
 
-    --accent: 221 83% 53%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 67 55% 94%;
+    --accent-foreground: 67 69% 22%;
 
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 84.2% 55%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221 83% 53%;
+    --border: 220 13% 88%;
+    --input: 220 13% 88%;
+    --ring: 67 69% 46%;
 
-    --radius: 0.75rem;
+    --radius: 0.875rem;
 
     /* Ticker Peek Pro (table, warning, info, positive, negative) */
     --positive: 142 60% 45%;
@@ -48,47 +49,48 @@
     --table-row-hover: 214 32% 96%;
     --table-border: 214.3 31.8% 91.4%;
 
-    --sidebar-background: 224 71% 4%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 221 83% 53%;
+    --sidebar-background: 220 14% 96%;
+    --sidebar-foreground: 224 71% 10%;
+    --sidebar-primary: 67 69% 46%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217.2 32.6% 17.5%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217.2 32.6% 17.5%;
-    --sidebar-ring: 221 83% 53%;
+    --sidebar-accent: 220 14% 91%;
+    --sidebar-accent-foreground: 224 71% 12%;
+    --sidebar-border: 220 13% 88%;
+    --sidebar-ring: 67 69% 46%;
 
     /* Typography settings */
     --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   }
 
+  /* Dark: aligné sur la landing (noir / gris très foncé + accent lime) */
   .dark {
-    --background: 224 71% 4%;
-    --foreground: 213 31% 91%;
+    --background: 0 0% 0%;
+    --foreground: 0 0% 98%;
 
-    --card: 224 71% 6%;
-    --card-foreground: 213 31% 91%;
+    --card: 0 0% 6%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 224 71% 6%;
-    --popover-foreground: 213 31% 91%;
+    --popover: 0 0% 6%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 67 69% 52%;
+    --primary-foreground: 0 0% 9%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 240 6% 14%;
+    --secondary-foreground: 0 0% 96%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 240 5% 15%;
+    --muted-foreground: 240 5% 55%;
 
-    --accent: 221 83% 53%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 67 40% 18%;
+    --accent-foreground: 67 85% 78%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 62.8% 45%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 221 83% 53%;
+    --border: 240 5% 18%;
+    --input: 240 5% 16%;
+    --ring: 67 69% 52%;
 
     --positive: 142 60% 45%;
     --negative: 0 62.8% 45%;
@@ -98,14 +100,14 @@
     --table-row-hover: 217.2 32.6% 14%;
     --table-border: 217.2 32.6% 17.5%;
     
-    --sidebar-background: 224 71% 4%;
-    --sidebar-foreground: 213 31% 91%;
-    --sidebar-primary: 221 83% 53%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 217.2 32.6% 17.5%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217.2 32.6% 17.5%;
-    --sidebar-ring: 221 83% 53%;
+    --sidebar-background: 0 0% 2%;
+    --sidebar-foreground: 0 0% 96%;
+    --sidebar-primary: 67 69% 52%;
+    --sidebar-primary-foreground: 0 0% 9%;
+    --sidebar-accent: 240 5% 12%;
+    --sidebar-accent-foreground: 0 0% 96%;
+    --sidebar-border: 240 5% 14%;
+    --sidebar-ring: 67 69% 52%;
   }
 }
 

@@ -1,5 +1,15 @@
-import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { RefreshCw, Table2, LineChart as LineChartIcon } from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts";
 import { fetchVolatility, type FuturesContract, type VolatilityResponse, type OptionsTypeOption } from "@/lib/ticker-peek-pro/barchart";
 import { DataCard } from "./DataCard";
 import { LoadingState, ErrorState, EmptyState } from "./DataStates";
@@ -24,6 +34,11 @@ const DEFAULT_OPTIONS_TYPES: OptionsTypeOption[] = [
   { label: 'Thursday Weekly Options', value: 'weeklyThursday' },
 ];
 
+function parseNumericField(raw: string): number {
+  const n = parseFloat(String(raw).replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : NaN;
+}
+
 export function VolatilityPanel({ contract, optionSymbol }: VolatilityPanelProps) {
   const [data, setData] = useState<VolatilityResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,6 +50,7 @@ export function VolatilityPanel({ contract, optionSymbol }: VolatilityPanelProps
   const [selectedMaturity, setSelectedMaturity] = useState<string>("");
   const [optionsTypes, setOptionsTypes] = useState<OptionsTypeOption[]>(DEFAULT_OPTIONS_TYPES);
   const [selectedOptionsType, setSelectedOptionsType] = useState<string>("monthly");
+  const [vizMode, setVizMode] = useState<"table" | "smile">("table");
 
   const loadData = async (maturity?: string, optType?: string, forceRefresh = false) => {
     setLoading(true);
@@ -101,6 +117,24 @@ export function VolatilityPanel({ contract, optionSymbol }: VolatilityPanelProps
   ];
 
   const currentData = activeTab === "calls" ? data?.calls || [] : data?.puts || [];
+
+  const smileSeries = useMemo(() => {
+    return currentData
+      .map((row) => {
+        const strike = parseNumericField(row.strike);
+        const ivPct = row.iv === "N/A" ? NaN : parseNumericField(row.iv);
+        return {
+          strike,
+          ivPct,
+          strikeLabel: row.strike,
+          ivLabel: row.iv,
+        };
+      })
+      .filter((p) => Number.isFinite(p.strike) && Number.isFinite(p.ivPct))
+      .sort((a, b) => a.strike - b.strike);
+  }, [currentData]);
+
+  const spotPrice = useMemo(() => parseNumericField(contract.last), [contract.last]);
 
   const formatGreekValue = (value: string, key: string) => {
     if (value === "N/A") return <span className="text-muted-foreground">N/A</span>;
@@ -221,10 +255,41 @@ export function VolatilityPanel({ contract, optionSymbol }: VolatilityPanelProps
             Puts {data?.puts.length ? `(${data.puts.length})` : ""}
           </button>
         </div>
+
+        <div className="flex items-center gap-1 bg-muted/30 rounded-lg p-1 w-fit border border-border/60">
+          <button
+            type="button"
+            onClick={() => setVizMode("table")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+              vizMode === "table"
+                ? "bg-card text-foreground shadow-sm ring-1 ring-border"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Table2 className="w-3.5 h-3.5" />
+            Table
+          </button>
+          <button
+            type="button"
+            onClick={() => setVizMode("smile")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+              vizMode === "smile"
+                ? "bg-primary/15 text-primary ring-1 ring-primary/30"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <LineChartIcon className="w-3.5 h-3.5" />
+            Vol smile
+          </button>
+        </div>
       </div>
 
       <DataCard
-        title={`${activeTab === "calls" ? "Call" : "Put"} Greeks`}
+        title={
+          vizMode === "smile"
+            ? `${activeTab === "calls" ? "Call" : "Put"} vol smile (IV vs strike)`
+            : `${activeTab === "calls" ? "Call" : "Put"} Greeks`
+        }
         actions={
           <button
             onClick={() => loadData(selectedMaturity || undefined, undefined, true)}
@@ -249,6 +314,76 @@ export function VolatilityPanel({ contract, optionSymbol }: VolatilityPanelProps
               </pre>
             )}
           </div>
+        ) : vizMode === "smile" ? (
+          smileSeries.length < 2 ? (
+            <div className="p-6">
+              <EmptyState message="Not enough valid IV points to plot a vol smile (need at least 2 strikes)." />
+            </div>
+          ) : (
+            <div className="p-4 space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Implied volatility (IV) by strike for the selected maturity and option type. Same data as the table.
+              </p>
+              <div className="h-[340px] w-full min-w-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={smileSeries} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                    <XAxis
+                      type="number"
+                      dataKey="strike"
+                      domain={["dataMin", "dataMax"]}
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(v) => (Number.isInteger(v) ? String(v) : v.toFixed(1))}
+                      label={{ value: "Strike", position: "insideBottom", offset: -4, className: "fill-muted-foreground text-xs" }}
+                    />
+                    <YAxis
+                      dataKey="ivPct"
+                      domain={["auto", "auto"]}
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(v) => `${v}%`}
+                      width={48}
+                      label={{ value: "IV (%)", angle: -90, position: "insideLeft", className: "fill-muted-foreground text-xs" }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                      }}
+                      formatter={(value: number) => [`${Number(value).toFixed(2)}%`, "IV"]}
+                      labelFormatter={(strike) => `Strike ${strike}`}
+                    />
+                    {Number.isFinite(spotPrice) &&
+                      smileSeries.length > 0 &&
+                      spotPrice >= smileSeries[0].strike &&
+                      spotPrice <= smileSeries[smileSeries.length - 1].strike && (
+                        <ReferenceLine
+                          x={spotPrice}
+                          stroke="hsl(var(--muted-foreground))"
+                          strokeDasharray="5 5"
+                          label={{
+                            value: "Underlying",
+                            position: "top",
+                            fill: "hsl(var(--muted-foreground))",
+                            fontSize: 10,
+                          }}
+                        />
+                      )}
+                    <Line
+                      type="monotone"
+                      dataKey="ivPct"
+                      stroke="hsl(var(--warning))"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: "hsl(var(--warning))", strokeWidth: 0 }}
+                      activeDot={{ r: 5 }}
+                      name="IV"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">

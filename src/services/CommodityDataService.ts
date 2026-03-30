@@ -19,7 +19,7 @@ import {
   calculateCostOfCarry,
   calculateCommodityForwardPrice,
   calculateVanillaGreeks
-} from './CommodityPricingModels';
+} from './PricingService';
 
 class CommodityDataService {
   private marketData: CommodityMarketData;

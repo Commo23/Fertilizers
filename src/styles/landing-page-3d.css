@@ -22,11 +22,10 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Body colors come from the app theme (index.css + dark/light class).
+   Do not force black/white here — it would persist after SPA navigation away from the landing. */
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #000000;
-  color: #FFFFFF;
-  /* overflow-x: hidden; - Removed to allow horizontal scrolling when needed */
 }
 
 /* Glassmorphism Cards */

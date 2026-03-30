@@ -171,7 +171,11 @@ const TickerPeekPro = () => {
             <VolSurfacePanel futureSymbol={selectedFuture.contract} optionSymbol={optionSymbol} />
           )}
           {view === "ivmatrix" && selectedFuture != null && optionSymbol !== "" && (
-            <IvMatrixPanel futureSymbol={selectedFuture.contract} optionSymbol={optionSymbol} />
+            <IvMatrixPanel
+              futureSymbol={selectedFuture.contract}
+              optionSymbol={optionSymbol}
+              underlyingLast={selectedFuture.last}
+            />
           )}
         </main>
       </div>

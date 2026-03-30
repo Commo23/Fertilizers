@@ -1,6 +1,16 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { RefreshCw, Calculator } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts";
 import type { SurfacePoint } from "@/lib/ticker-peek-pro/barchart";
 import { fetchVolSurface, fetchVolSurfaceStrikes } from "@/lib/ticker-peek-pro/barchart";
 import { interpolateSurface } from "@/lib/ticker-peek-pro/volSurfaceInterpolation";
@@ -12,11 +22,19 @@ import { StrikeRangeSelector } from "./StrikeRangeSelector";
 interface IvMatrixPanelProps {
   futureSymbol: string;
   optionSymbol: string;
+  /** Prix last du future (ex. depuis la liste) — ligne verticale « underlying » sur le smile */
+  underlyingLast?: string;
+}
+
+function parseNumericField(raw: string | undefined): number {
+  if (raw == null || raw === "") return NaN;
+  const n = parseFloat(String(raw).replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : NaN;
 }
 
 type Phase = "loading-strikes" | "select-strikes" | "loading-surface" | "done";
 
-export function IvMatrixPanel({ futureSymbol, optionSymbol }: IvMatrixPanelProps) {
+export function IvMatrixPanel({ futureSymbol, optionSymbol, underlyingLast }: IvMatrixPanelProps) {
   const [phase, setPhase] = useState<Phase>("loading-strikes");
   const [availableStrikes, setAvailableStrikes] = useState<number[]>([]);
   const [strikeRange, setStrikeRange] = useState<[number, number] | null>(null);
@@ -27,6 +45,7 @@ export function IvMatrixPanel({ futureSymbol, optionSymbol }: IvMatrixPanelProps
   const [useInterpolation, setUseInterpolation] = useState(true);
   const [queryStrike, setQueryStrike] = useState("");
   const [queryDte, setQueryDte] = useState("");
+  const [smileDte, setSmileDte] = useState<number | null>(null);
 
   useEffect(() => {
     setPhase("loading-strikes");
@@ -102,6 +121,33 @@ export function IvMatrixPanel({ futureSymbol, optionSymbol }: IvMatrixPanelProps
 
     return { strikes, dtes, maturityLabels, z };
   }, [points, activeType, useInterpolation]);
+
+  useEffect(() => {
+    if (!surfaceData?.dtes?.length) {
+      setSmileDte(null);
+      return;
+    }
+    setSmileDte((prev) => {
+      if (prev !== null && surfaceData.dtes.includes(prev)) return prev;
+      return surfaceData.dtes[Math.floor(surfaceData.dtes.length / 2)];
+    });
+  }, [surfaceData]);
+
+  const smileSeriesFromMatrix = useMemo(() => {
+    if (!surfaceData || smileDte === null) return [];
+    const di = surfaceData.dtes.indexOf(smileDte);
+    if (di < 0) return [];
+    return surfaceData.strikes
+      .map((strike, si) => {
+        const iv = surfaceData.z[di]?.[si];
+        const ivPct = iv !== null && iv !== undefined && Number.isFinite(iv) ? iv : NaN;
+        return { strike, ivPct };
+      })
+      .filter((p) => Number.isFinite(p.ivPct))
+      .sort((a, b) => a.strike - b.strike);
+  }, [surfaceData, smileDte]);
+
+  const spotPrice = useMemo(() => parseNumericField(underlyingLast), [underlyingLast]);
 
   const interpolatedIV = useMemo(() => {
     if (!surfaceData || !queryStrike || !queryDte) return null;
@@ -279,6 +325,110 @@ export function IvMatrixPanel({ futureSymbol, optionSymbol }: IvMatrixPanelProps
 
           {phase === "done" && error && (
             <ErrorState message={error} onRetry={() => strikeRange && buildSurface(strikeRange[0], strikeRange[1])} />
+          )}
+
+          {phase === "done" && surfaceData && !error && smileDte !== null && (
+            <DataCard
+              title={`Vol smile — IV vs strike (${smileDte} DTE)`}
+              actions={
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-muted-foreground whitespace-nowrap">Maturité</label>
+                  <select
+                    value={smileDte}
+                    onChange={(e) => setSmileDte(Number(e.target.value))}
+                    className="bg-muted/50 border border-border rounded-md px-2 py-1 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary max-w-[220px]"
+                  >
+                    {surfaceData.dtes.map((dte, i) => (
+                      <option key={dte} value={dte}>
+                        {dte}d — {surfaceData.maturityLabels[i] ?? dte}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              }
+            >
+              {smileSeriesFromMatrix.length < 2 ? (
+                <p className="text-sm text-muted-foreground p-4">
+                  Pas assez de points IV valides à cette maturité pour tracer le smile (interpolation{" "}
+                  {useInterpolation ? "activée" : "désactivée"}).
+                </p>
+              ) : (
+                <div className="p-4 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Courbe à maturité fixe : valeurs issues de la matrice ci-dessous
+                    {useInterpolation ? " (après interpolation 2D)" : " (brutes)"}.
+                  </p>
+                  <div className="h-[320px] w-full min-w-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={smileSeriesFromMatrix} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                        <XAxis
+                          type="number"
+                          dataKey="strike"
+                          domain={["dataMin", "dataMax"]}
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={(v) => (Number.isInteger(v) ? String(v) : Number(v).toFixed(1))}
+                          label={{
+                            value: "Strike",
+                            position: "insideBottom",
+                            offset: -4,
+                            className: "fill-muted-foreground text-xs",
+                          }}
+                        />
+                        <YAxis
+                          dataKey="ivPct"
+                          domain={["auto", "auto"]}
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={(v) => `${v}%`}
+                          width={48}
+                          label={{
+                            value: "IV (%)",
+                            angle: -90,
+                            position: "insideLeft",
+                            className: "fill-muted-foreground text-xs",
+                          }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px",
+                            fontSize: "12px",
+                          }}
+                          formatter={(value: number) => [`${Number(value).toFixed(2)}%`, "IV"]}
+                          labelFormatter={(strike) => `Strike ${strike}`}
+                        />
+                        {Number.isFinite(spotPrice) &&
+                          smileSeriesFromMatrix.length > 0 &&
+                          spotPrice >= smileSeriesFromMatrix[0].strike &&
+                          spotPrice <= smileSeriesFromMatrix[smileSeriesFromMatrix.length - 1].strike && (
+                            <ReferenceLine
+                              x={spotPrice}
+                              stroke="hsl(var(--muted-foreground))"
+                              strokeDasharray="5 5"
+                              label={{
+                                value: "Underlying",
+                                position: "top",
+                                fill: "hsl(var(--muted-foreground))",
+                                fontSize: 10,
+                              }}
+                            />
+                          )}
+                        <Line
+                          type="monotone"
+                          dataKey="ivPct"
+                          stroke="hsl(var(--warning))"
+                          strokeWidth={2}
+                          dot={{ r: 3, fill: "hsl(var(--warning))", strokeWidth: 0 }}
+                          activeDot={{ r: 5 }}
+                          name="IV"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </DataCard>
           )}
 
           {phase === "done" && surfaceData && !error && (

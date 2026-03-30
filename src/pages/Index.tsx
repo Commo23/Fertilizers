@@ -17,880 +17,6 @@
  * - Monte Carlo Drift: (b - 0.5 * σ²) for commodity price dynamics
  */
 
-// ===========================
-// EXPORTED PRICING FUNCTIONS
-// ===========================
-
-// Fonction d'erreur pour les calculs statistiques
-export const erf = (x: number): number => {
-  const a1 =  0.254829592;
-  const a2 = -0.284496736;
-  const a3 =  1.421413741;
-  const a4 = -1.453152027;
-  const a5 =  1.061405429;
-  const p  =  0.3275911;
-  
-  const sign = (x < 0) ? -1 : 1;
-  x = Math.abs(x);
-  
-  const t = 1.0/(1.0 + p*x);
-  const y = 1.0 - ((((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t*Math.exp(-x*x));
-  
-  return sign*y;
-};
-
-// Fonction de distribution normale cumulative
-export const CND = (x: number): number => (1 + erf(x / Math.sqrt(2))) / 2;
-
-// Commodity Forward Pricing Model (using cost of carry)
-export const calculateCommodityForwardPrice = (S: number, r: number, storage: number, convenience: number, t: number): number => {
-  const b = r + storage - convenience;
-  return S * Math.exp(b * t);
-};
-
-// Legacy: Use calculateCommodityForwardPrice instead
-// For backwards compatibility, this wraps the commodity forward pricing
-export const calculateFXForwardPrice = (S: number, r_d: number, r_f: number, t: number): number => {
-  const b = r_d - r_f; // Cost of carry for FX
-  return S * Math.exp(b * t);
-};
-
-
-// Vanilla option Monte Carlo pricing for commodities
-export const calculateVanillaOptionMonteCarlo = (
-  optionType: string,
-  S: number,      // Current price
-  K: number,      // Strike price
-  r: number,      // Risk-free rate
-  b: number,      // Cost of carry (r + storage - convenience)
-  t: number,      // Time to maturity in years
-  sigma: number,  // Volatility
-  numSimulations: number = 1000 // Number of simulations
-): number => {
-  let payoffSum = 0;
-  
-  for (let i = 0; i < numSimulations; i++) {
-    // Generate random normal variable (using Box-Muller transform for better accuracy)
-    const u1 = Math.random();
-    const u2 = Math.random();
-    const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-    
-    // Simulate final commodity price using geometric Brownian motion with cost of carry
-    const finalPrice = S * Math.exp(
-      (b - 0.5 * sigma * sigma) * t + 
-      sigma * Math.sqrt(t) * z
-    );
-    
-    // Calculate payoff
-    let payoff = 0;
-    if (optionType === 'call') {
-      payoff = Math.max(finalPrice - K, 0);
-    } else if (optionType === 'put') {
-      payoff = Math.max(K - finalPrice, 0);
-    }
-    
-    payoffSum += payoff;
-  }
-  
-  // Calculate average payoff and discount to present value
-  const averagePayoff = payoffSum / numSimulations;
-  const optionPrice = averagePayoff * Math.exp(-r * t);
-  
-  return Math.max(0, optionPrice);
-};
-
-// Barrier option Monte Carlo pricing (complete implementation with path generation)
-export const calculateBarrierOptionPrice = (
-  optionType: string,
-  S: number,      // Current price
-  K: number,      // Strike price
-  r: number,      // Risk-free rate
-  t: number,      // Time to maturity in years
-  sigma: number,  // Volatility
-  barrier: number, // Barrier level
-  secondBarrier?: number, // Second barrier for double barrier options
-  numSimulations: number = 1000 // Number of simulations
-): number => {
-  // Generate a simple price path for this specific option
-  const numSteps = Math.max(252 * t, 50); // At least 50 steps
-  const dt = t / numSteps;
-  
-  // Generate paths for just this one option
-  const paths = [];
-  for (let i = 0; i < numSimulations; i++) {
-    const path = [S]; // Start with current price
-    
-    // Simulate price path
-    for (let step = 0; step < numSteps; step++) {
-      const previousPrice = path[path.length - 1];
-      // Generate random normal variable
-      const randomWalk = Math.random() * 2 - 1; // Simple approximation of normal distribution
-      
-      // Update price using geometric Brownian motion
-      const nextPrice = previousPrice * Math.exp(
-        (r - 0.5 * Math.pow(sigma, 2)) * dt + 
-        sigma * Math.sqrt(dt) * randomWalk
-      );
-      
-      path.push(nextPrice);
-    }
-    
-    paths.push(path);
-  }
-  
-  // Use calculatePricesFromPaths to calculate the price
-  const optionPrice = calculatePricesFromPaths(
-    optionType,
-    S,
-    K,
-    r,
-    numSteps, // The final index in the path
-    paths,
-    barrier,
-    secondBarrier
-  );
-
-  // S'assurer que le prix de l'option n'est jamais négatif
-  return Math.max(0, optionPrice);
-};
-
-// Calculate option prices and payoffs from price paths
-export const calculatePricesFromPaths = (
-  optionType: string, 
-  S: number, 
-  K: number, 
-  r: number, 
-  maturityIndex: number,
-  paths: number[][],
-  barrier?: number,
-  secondBarrier?: number
-): number => {
-  let priceSum = 0;
-  const numSimulations = paths.length;
-  
-  for (let i = 0; i < numSimulations; i++) {
-    const path = paths[i];
-    const finalPrice = path[maturityIndex];
-    let payoff = 0;
-    let barrierHit = false;
-    
-    // Check for barrier events along the path up to maturity
-    if (barrier && (optionType.includes('knockout') || optionType.includes('knockin'))) {
-      for (let step = 0; step <= maturityIndex; step++) {
-        const pathPrice = path[step];
-        
-        // Check barrier logic based on option type
-        const isAboveBarrier = pathPrice >= barrier;
-        const isBelowBarrier = pathPrice <= barrier;
-        
-        // Apply same barrier logic as in the original function
-        if (optionType.includes('knockout')) {
-          if (optionType.includes('reverse')) {
-            if (optionType.includes('put')) {
-              // Put Reverse KO: Knocked out if price goes ABOVE barrier
-              if (isAboveBarrier) {
-                barrierHit = true;
-                break;
-              }
-            } else {
-              // Call Reverse KO: Knocked out if price goes BELOW barrier
-              if (isBelowBarrier) {
-                barrierHit = true;
-                break;
-              }
-            }
-          } else if (optionType.includes('double')) {
-            // Double KO: Knocked out if price crosses either barrier
-            const upperBarrier = Math.max(barrier, secondBarrier || 0);
-            const lowerBarrier = Math.min(barrier, secondBarrier || Infinity);
-            
-            // Vérifier si le prix touche soit la barrière supérieure, soit la barrière inférieure
-            // Pour un Call Double KO, l'option est invalidée si le prix monte trop haut ou descend trop bas
-            if ((pathPrice >= upperBarrier) || (pathPrice <= lowerBarrier)) {
-              barrierHit = true;
-              break;
-            }
-          } else {
-            if (optionType.includes('put')) {
-              // Put KO: Knocked out if price goes BELOW barrier
-              if (isBelowBarrier) {
-                barrierHit = true;
-                break;
-              }
-            } else {
-              // Call KO: Knocked out if price goes ABOVE barrier
-              if (isAboveBarrier) {
-                barrierHit = true;
-                break;
-              }
-            }
-          }
-        } else if (optionType.includes('knockin')) {
-          if (optionType.includes('reverse')) {
-            if (optionType.includes('put')) {
-              // Put Reverse KI: Knocked in if price goes ABOVE barrier
-              if (isAboveBarrier) {
-                barrierHit = true;
-              }
-            } else {
-              // Call Reverse KI: Knocked in if price goes BELOW barrier
-              if (isBelowBarrier) {
-                barrierHit = true;
-              }
-            }
-          } else if (optionType.includes('double')) {
-            // Double KI: Knocked in if price crosses either barrier
-            const upperBarrier = Math.max(barrier, secondBarrier || 0);
-            const lowerBarrier = Math.min(barrier, secondBarrier || Infinity);
-            if (pathPrice >= upperBarrier || pathPrice <= lowerBarrier) {
-              barrierHit = true;
-            }
-          } else {
-            if (optionType.includes('put')) {
-              // Put KI: Knocked in if price goes BELOW barrier
-              if (isBelowBarrier) {
-                barrierHit = true;
-              }
-            } else {
-              // Call KI: Knocked in if price goes ABOVE barrier
-              if (isAboveBarrier) {
-                barrierHit = true;
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    // Calculate payoff
-    const isCall = optionType.includes('call') || (!optionType.includes('put') && !optionType.includes('swap'));
-    const baseOptionPayoff = isCall ? 
-      Math.max(0, finalPrice - K) : 
-      Math.max(0, K - finalPrice);
-    
-    if (!barrier) {
-      // Standard option
-      payoff = baseOptionPayoff;
-    } else if (optionType.includes('knockout')) {
-      // Knockout option
-      // Une fois que la barrière est touchée (barrierHit=true), l'option est invalidée définitivement
-      // et le payoff reste à zéro, même si le prix revient dans la zone favorable
-      if (!barrierHit) {
-        payoff = baseOptionPayoff;
-      }
-    } else if (optionType.includes('knockin')) {
-      // Knockin option
-      if (barrierHit) {
-        payoff = baseOptionPayoff;
-      }
-    }
-    
-    priceSum += payoff;
-  }
-  
-  // Average payoff discounted back to present value
-  const t = maturityIndex / (252 * paths[0].length); // Approximate time to maturity
-  return (priceSum / numSimulations) * Math.exp(-r * t);
-};
-
-// Digital option Monte Carlo pricing (complete implementation)
-export const calculateDigitalOptionPrice = (
-  optionType: string,
-  S: number,      // Current price
-  K: number,      // Strike/Barrier level
-  r: number,      // Risk-free rate
-  t: number,      // Time to maturity
-  sigma: number,  // Volatility
-  barrier?: number,
-  secondBarrier?: number,
-  numSimulations: number = 10000,
-  rebate: number = 1
-): number => {
-  // Conversion du rebate en pourcentage
-  const rebateDecimal = rebate / 100;
-  
-  let payoutSum = 0;
-  // Amélioration de la précision de la simulation
-  const stepsPerDay = 4;
-  const totalSteps = Math.max(252 * t * stepsPerDay, 50);
-  const dt = t / totalSteps;
-  for (let sim = 0; sim < numSimulations; sim++) {
-    let price = S;
-    let touched = false;
-    let touchedSecond = false;
-    for (let step = 0; step < totalSteps; step++) {
-      const z = Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random());
-      price = price * Math.exp((r - 0.5 * sigma * sigma) * dt + sigma * Math.sqrt(dt) * z);
-      switch (optionType) {
-        case 'one-touch':
-          if (barrier !== undefined && price >= barrier) touched = true;
-          break;
-        case 'no-touch':
-          if (barrier !== undefined && price >= barrier) touched = true;
-          break;
-        case 'double-touch':
-          if (barrier !== undefined && price >= barrier) touched = true;
-          if (secondBarrier !== undefined && price <= secondBarrier) touchedSecond = true;
-          break;
-        case 'double-no-touch':
-          if ((barrier !== undefined && price >= barrier) || (secondBarrier !== undefined && price <= secondBarrier)) touched = true;
-          break;
-        case 'range-binary':
-          if (barrier !== undefined && K !== undefined && price >= K && price <= barrier) touched = true;
-          break;
-        case 'outside-binary':
-          if (barrier !== undefined && K !== undefined && (price <= K || price >= barrier)) touched = true;
-          break;
-      }
-    }
-    switch (optionType) {
-      case 'one-touch':
-        if (touched) payoutSum += rebateDecimal;
-        break;
-      case 'no-touch':
-        if (!touched) payoutSum += rebateDecimal;
-        break;
-      case 'double-touch':
-        if (touched || touchedSecond) payoutSum += rebateDecimal;
-        break;
-      case 'double-no-touch':
-        if (!touched) payoutSum += rebateDecimal;
-        break;
-      case 'range-binary':
-        if (touched) payoutSum += rebateDecimal;
-        break;
-      case 'outside-binary':
-        if (touched) payoutSum += rebateDecimal;
-        break;
-    }
-  }
-  // Retourner le prix sans facteur d'échelle arbitraire
-  return Math.exp(-r * t) * (payoutSum / numSimulations);
-};
-
-// Barrier option closed form pricing (complete VBA implementation)
-export const calculateBarrierOptionClosedForm = (
-  optionType: string,
-  S: number,      // Current price
-  K: number,      // Strike price
-  r: number,      // Risk-free rate
-  t: number,      // Time to maturity in years
-  sigma: number,  // Volatility
-  barrier: number, // Barrier level
-  secondBarrier?: number, // Second barrier for double barrier options
-  r_f: number = 0 // Foreign risk-free rate (not used in this implementation)
-): number => {
-  // Paramètres fondamentaux selon les notations du code VBA
-  const b = r;  // Cost of carry (peut être ajusté pour dividendes)
-  const v = sigma; // Pour garder la même notation que le code VBA
-  const T = t;    // Pour garder la même notation que le code VBA
-  const barrierOptionSimulations = 1000; // Default simulations
-  
-  // PARTIE 1: Options à barrière simple
-  if (!optionType.includes('double')) {
-    // Calcul des paramètres de base
-    const mu = (b - v**2/2) / (v**2);
-    const lambda = Math.sqrt(mu**2 + 2*r/(v**2));
-    
-    // Paramètres pour les options à barrière simple selon le code VBA
-    const X = K; // Le strike price
-    const H = barrier; // La barrière
-    
-    const X1 = Math.log(S/X) / (v * Math.sqrt(T)) + (1 + mu) * v * Math.sqrt(T);
-    const X2 = Math.log(S/H) / (v * Math.sqrt(T)) + (1 + mu) * v * Math.sqrt(T);
-    const y1 = Math.log(H**2/(S*X)) / (v * Math.sqrt(T)) + (1 + mu) * v * Math.sqrt(T);
-    const y2 = Math.log(H/S) / (v * Math.sqrt(T)) + (1 + mu) * v * Math.sqrt(T);
-    const Z = Math.log(H/S) / (v * Math.sqrt(T)) + lambda * v * Math.sqrt(T);
-    
-    // Variables binaires eta et phi selon le type d'option
-    let eta = 0, phi = 0;
-    let TypeFlag = "";
-    
-    // Déterminer le TypeFlag basé sur le type d'option
-    if (optionType === 'call-knockin' && !optionType.includes('reverse') && H < S) {
-      TypeFlag = "cdi"; // Call down-and-in
-      eta = 1;
-      phi = 1;
-    } else if (optionType === 'call-knockin' && !optionType.includes('reverse') && H > S) {
-      TypeFlag = "cui"; // Call up-and-in
-      eta = -1;
-      phi = 1;
-    } else if (optionType === 'put-knockin' && !optionType.includes('reverse') && H < S) {
-      TypeFlag = "pdi"; // Put down-and-in
-      eta = 1;
-      phi = -1;
-    } else if (optionType === 'put-knockin' && !optionType.includes('reverse') && H > S) {
-      TypeFlag = "pui"; // Put up-and-in
-      eta = -1;
-      phi = -1;
-    } else if (optionType === 'call-knockout' && !optionType.includes('reverse') && H < S) {
-      TypeFlag = "cdo"; // Call down-and-out
-      eta = 1;
-      phi = 1;
-    } else if (optionType === 'call-knockout' && !optionType.includes('reverse') && H > S) {
-      TypeFlag = "cuo"; // Call up-and-out
-      eta = -1;
-      phi = 1;
-    } else if (optionType === 'put-knockout' && !optionType.includes('reverse') && H < S) {
-      TypeFlag = "pdo"; // Put down-and-out
-      eta = 1;
-      phi = -1;
-    } else if (optionType === 'put-knockout' && !optionType.includes('reverse') && H > S) {
-      TypeFlag = "puo"; // Put up-and-out
-      eta = -1;
-      phi = -1;
-    } else if (optionType === 'call-reverse-knockin') {
-      // Équivalent à put-up-and-in
-      TypeFlag = "pui";
-      eta = -1;
-      phi = -1;
-    } else if (optionType === 'call-reverse-knockout') {
-      // Équivalent à put-up-and-out
-      TypeFlag = "puo";
-      eta = -1;
-      phi = -1;
-    } else if (optionType === 'put-reverse-knockin') {
-      // Équivalent à call-up-and-in
-      TypeFlag = "cui";
-      eta = -1;
-      phi = 1;
-    } else if (optionType === 'put-reverse-knockout') {
-      // Équivalent à call-up-and-out
-      TypeFlag = "cuo";
-      eta = -1;
-      phi = 1;
-    }
-    
-    // Si le type d'option n'est pas reconnu, utiliser Monte Carlo
-    if (TypeFlag === "") {
-      return calculateBarrierOptionPrice(optionType, S, K, r, t, sigma, barrier, secondBarrier, barrierOptionSimulations);
-    }
-    
-    // Calculer les termes f1-f6 selon le code VBA
-    const f1 = phi * S * Math.exp((b-r)*T) * CND(phi*X1) - 
-              phi * X * Math.exp(-r*T) * CND(phi*X1 - phi*v*Math.sqrt(T));
-              
-    const f2 = phi * S * Math.exp((b-r)*T) * CND(phi*X2) - 
-              phi * X * Math.exp(-r*T) * CND(phi*X2 - phi*v*Math.sqrt(T));
-              
-    const f3 = phi * S * Math.exp((b-r)*T) * (H/S)**(2*(mu+1)) * CND(eta*y1) - 
-              phi * X * Math.exp(-r*T) * (H/S)**(2*mu) * CND(eta*y1 - eta*v*Math.sqrt(T));
-              
-    const f4 = phi * S * Math.exp((b-r)*T) * (H/S)**(2*(mu+1)) * CND(eta*y2) - 
-              phi * X * Math.exp(-r*T) * (H/S)**(2*mu) * CND(eta*y2 - eta*v*Math.sqrt(T));
-    
-    // K représente le cash rebate, généralement 0 pour les options standards
-    const cashRebate = 0;
-    
-    const f5 = cashRebate * Math.exp(-r*T) * (CND(eta*X2 - eta*v*Math.sqrt(T)) - 
-            (H/S)**(2*mu) * CND(eta*y2 - eta*v*Math.sqrt(T)));
-            
-    const f6 = cashRebate * ((H/S)**(mu+lambda) * CND(eta*Z) + 
-            (H/S)**(mu-lambda) * CND(eta*Z - 2*eta*lambda*v*Math.sqrt(T)));
-    
-    // Calculer le prix selon le TypeFlag et la relation entre X et H
-    let optionPrice = 0;
-    
-    if (X > H) {
-      switch (TypeFlag) {
-        case "cdi": optionPrice = f3 + f5; break;
-        case "cui": optionPrice = f1 + f5; break;
-        case "pdi": optionPrice = f2 - f3 + f4 + f5; break;
-        case "pui": optionPrice = f1 - f2 + f4 + f5; break;
-        case "cdo": optionPrice = f1 - f3 + f6; break;
-        case "cuo": optionPrice = f6; break;
-        case "pdo": optionPrice = f1 - f2 + f3 - f4 + f6; break;
-        case "puo": optionPrice = f2 - f4 + f6; break;
-      }
-    } else if (X < H) {
-      switch (TypeFlag) {
-        case "cdi": optionPrice = f1 - f2 + f4 + f5; break;
-        case "cui": optionPrice = f2 - f3 + f4 + f5; break;
-        case "pdi": optionPrice = f1 + f5; break;
-        case "pui": optionPrice = f3 + f5; break;
-        case "cdo": optionPrice = f2 - f4 + f6; break;
-        case "cuo": optionPrice = f1 - f2 + f3 - f4 + f6; break;
-        case "pdo": optionPrice = f6; break;
-        case "puo": optionPrice = f1 - f3 + f6; break;
-      }
-    }
-    
-    // S'assurer que le prix de l'option n'est jamais négatif
-    return Math.max(0, optionPrice);
-  }
-  // PARTIE 2: Options à double barrière
-  else if (secondBarrier) {
-    // Variables pour les options à double barrière selon le code VBA
-    const X = K; // Strike price
-    const L = Math.min(barrier, secondBarrier); // Barrière inférieure
-    const U = Math.max(barrier, secondBarrier); // Barrière supérieure
-    
-    // Paramètres pour les formules de double barrière
-    const delta1 = 0; // Taux de croissance des barrières (généralement 0)
-    const delta2 = 0; // Taux de dividende (dans notre cas, 0)
-    
-    // Déterminer le TypeFlag en fonction du type d'option
-    let TypeFlag = "";
-    if (optionType.includes('call-double-knockout')) {
-      TypeFlag = "co"; // Call double-knockout (out)
-    } else if (optionType.includes('call-double-knockin')) {
-      TypeFlag = "ci"; // Call double-knockin (in)
-    } else if (optionType.includes('put-double-knockout')) {
-      TypeFlag = "po"; // Put double-knockout (out)
-    } else if (optionType.includes('put-double-knockin')) {
-      TypeFlag = "pi"; // Put double-knockin (in)
-    }
-    
-    // Si le type n'est pas reconnu, utiliser Monte Carlo
-    if (TypeFlag === "") {
-      return calculateBarrierOptionPrice(optionType, S, K, r, t, sigma, barrier, secondBarrier, barrierOptionSimulations);
-    }
-    
-    // Calculer les variables F et E selon le code VBA
-    const F = U * Math.exp(delta1 * T);
-    const E = L * Math.exp(delta1 * T);
-    
-    let Sum1 = 0;
-    let Sum2 = 0;
-    
-    // Pour les options call double-barrière (ci/co)
-    if (TypeFlag === "co" || TypeFlag === "ci") {
-      // Somme sur un nombre fini de termes (-5 à 5 dans le code VBA)
-      for (let n = -5; n <= 5; n++) {
-        const d1 = (Math.log(S * U ** (2 * n) / (X * L ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-        const d2 = (Math.log(S * U ** (2 * n) / (F * L ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-        const d3 = (Math.log(L ** (2 * n + 2) / (X * S * U ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-        const d4 = (Math.log(L ** (2 * n + 2) / (F * S * U ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-        
-        const mu1 = 2 * (b - delta2 - n * (delta1 - delta2)) / v ** 2 + 1;
-        const mu2 = 2 * n * (delta1 - delta2) / v ** 2;
-        const mu3 = 2 * (b - delta2 + n * (delta1 - delta2)) / v ** 2 + 1;
-        
-        Sum1 += (U ** n / L ** n) ** mu1 * (L / S) ** mu2 * (CND(d1) - CND(d2)) - 
-              (L ** (n + 1) / (U ** n * S)) ** mu3 * (CND(d3) - CND(d4));
-              
-        Sum2 += (U ** n / L ** n) ** (mu1 - 2) * (L / S) ** mu2 * (CND(d1 - v * Math.sqrt(T)) - CND(d2 - v * Math.sqrt(T))) - 
-              (L ** (n + 1) / (U ** n * S)) ** (mu3 - 2) * (CND(d3 - v * Math.sqrt(T)) - CND(d4 - v * Math.sqrt(T)));
-      }
-    }
-    // Pour les options put double-barrière (pi/po)
-    else if (TypeFlag === "po" || TypeFlag === "pi") {
-      // Somme sur un nombre fini de termes (-5 à 5 dans le code VBA)
-      for (let n = -5; n <= 5; n++) {
-        const d1 = (Math.log(S * U ** (2 * n) / (E * L ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-        const d2 = (Math.log(S * U ** (2 * n) / (X * L ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-        const d3 = (Math.log(L ** (2 * n + 2) / (E * S * U ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-        const d4 = (Math.log(L ** (2 * n + 2) / (X * S * U ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-        
-        const mu1 = 2 * (b - delta2 - n * (delta1 - delta2)) / v ** 2 + 1;
-        const mu2 = 2 * n * (delta1 - delta2) / v ** 2;
-        const mu3 = 2 * (b - delta2 + n * (delta1 - delta2)) / v ** 2 + 1;
-        
-        Sum1 += (U ** n / L ** n) ** mu1 * (L / S) ** mu2 * (CND(d1) - CND(d2)) - 
-              (L ** (n + 1) / (U ** n * S)) ** mu3 * (CND(d3) - CND(d4));
-              
-        Sum2 += (U ** n / L ** n) ** (mu1 - 2) * (L / S) ** mu2 * (CND(d1 - v * Math.sqrt(T)) - CND(d2 - v * Math.sqrt(T))) - 
-              (L ** (n + 1) / (U ** n * S)) ** (mu3 - 2) * (CND(d3 - v * Math.sqrt(T)) - CND(d4 - v * Math.sqrt(T)));
-      }
-    }
-    
-    // Calculer OutValue selon le type d'option
-    let OutValue = 0;
-    if (TypeFlag === "co" || TypeFlag === "ci") {
-      OutValue = S * Math.exp((b - r) * T) * Sum1 - X * Math.exp(-r * T) * Sum2;
-    } else if (TypeFlag === "po" || TypeFlag === "pi") {
-      OutValue = X * Math.exp(-r * T) * Sum2 - S * Math.exp((b - r) * T) * Sum1;
-    }
-    
-    // Fonction pour calculer le prix Black-Scholes standard
-    const GBlackScholes = (type: string, S: number, X: number, T: number, r: number, b: number, v: number) => {
-      const d1 = (Math.log(S / X) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-      const d2 = d1 - v * Math.sqrt(T);
-      
-      if (type === "c") {
-        return S * Math.exp((b - r) * T) * CND(d1) - X * Math.exp(-r * T) * CND(d2);
-      } else { // type === "p"
-        return X * Math.exp(-r * T) * CND(-d2) - S * Math.exp((b - r) * T) * CND(-d1);
-      }
-    };
-    
-    // Calculer le prix final selon le TypeFlag (appliquer la relation de parité pour les knockin)
-    let optionPrice = 0;
-    if (TypeFlag === "co") {
-      optionPrice = OutValue;
-    } else if (TypeFlag === "po") {
-      optionPrice = OutValue;
-    } else if (TypeFlag === "ci") {
-      // Pour les options knockin, utiliser la relation: knockin + knockout = vanille
-      optionPrice = GBlackScholes("c", S, X, T, r, b, v) - OutValue;
-    } else if (TypeFlag === "pi") {
-      // Pour les options knockin, utiliser la relation: knockin + knockout = vanille
-      optionPrice = GBlackScholes("p", S, X, T, r, b, v) - OutValue;
-    }
-    
-    // S'assurer que le prix de l'option n'est jamais négatif
-    return Math.max(0, optionPrice);
-  }
-  
-  // Si nous arrivons ici, c'est que le type d'option n'est pas supporté
-  return calculateBarrierOptionPrice(optionType, S, K, r, t, sigma, barrier, secondBarrier, barrierOptionSimulations);
-};
-
-// Generic option pricing function
-export const calculateOptionPrice = (
-  type: string,
-  S: number,
-  K: number,
-  r_d: number,
-  r_f: number,
-  t: number,
-  sigma: number,
-  barrier?: number,
-  secondBarrier?: number,
-  rebate?: number,
-  numSimulations: number = 1000
-): number => {
-  if (type === 'call' || type === 'put') {
-    // Use Black-Scholes for vanilla options
-    const d1 = (Math.log(S/K) + (r_d - r_f + sigma*sigma/2)*t) / (sigma*Math.sqrt(t));
-    const d2 = d1 - sigma*Math.sqrt(t);
-    
-    const Nd1 = CND(d1);
-    const Nd2 = CND(d2);
-    
-    if (type === 'call') {
-      return S * Math.exp(-r_f * t) * Nd1 - K * Math.exp(-r_d * t) * Nd2;
-    } else { // put
-      return K * Math.exp(-r_d * t) * CND(-d2) - S * Math.exp(-r_f * t) * CND(-d1);
-    }
-  } else if (type.includes('knockout') || type.includes('knockin')) {
-    return calculateBarrierOptionClosedForm(type, S, K, r_d, t, sigma, barrier || 0, secondBarrier, 0);
-  } else {
-    return calculateDigitalOptionPrice(type, S, K, r_d, t, sigma, barrier, secondBarrier, numSimulations, rebate || 1);
-  }
-};
-
-// Implied volatility calculation
-export const calculateImpliedVolatility = (
-  optionType: string,
-  S: number,      // Prix actuel du sous-jacent
-  K: number,      // Prix d'exercice
-  r_d: number,    // Taux domestique sans risque
-  r_f: number,    // Taux étranger sans risque
-  t: number,      // Temps jusqu'à maturité en années
-  marketPrice: number,  // Prix de l'option observé sur le marché
-  tolerance: number = 0.0001, // Précision souhaitée
-  maxIterations: number = 100 // Nombre maximum d'itérations
-): number => {
-  // Pour les options à barrière ou complexes, cette fonction est plus difficile à implémenter
-  // Dans ce cas, nous nous limitons aux calls et puts vanille
-  if (optionType !== 'call' && optionType !== 'put') {
-    return 0; // Retourner une valeur par défaut pour les options non supportées
-  }
-
-  // Méthode de Newton-Raphson pour trouver la volatilité implicite
-  let sigma = 0.20; // Valeur initiale
-  let vega = 0;
-  let price = 0;
-  let diff = 0;
-  let iteration = 0;
-  let d1 = 0;
-
-    while (iteration < maxIterations) {
-      // Calcul du prix avec la volatilité courante (Black-Scholes)
-      d1 = (Math.log(S/K) + (r_d - r_f + sigma*sigma/2)*t) / (sigma*Math.sqrt(t));
-      const d2 = d1 - sigma*Math.sqrt(t);
-      
-      const Nd1 = CND(d1);
-      const Nd2 = CND(d2);
-      
-      if (optionType === 'call') {
-        price = S * Math.exp(-r_f * t) * Nd1 - K * Math.exp(-r_d * t) * Nd2;
-      } else { // put
-        price = K * Math.exp(-r_d * t) * CND(-d2) - S * Math.exp(-r_f * t) * CND(-d1);
-      }
-    
-    // Différence entre le prix calculé et le prix observé
-    diff = price - marketPrice;
-    
-    // Vérifier si la précision souhaitée est atteinte
-    if (Math.abs(diff) < tolerance) {
-      break;
-    }
-    
-    // Calcul de la vega (dérivée du prix par rapport à la volatilité)
-    vega = S * Math.sqrt(t) * Math.exp(-r_f * t) * (1/Math.sqrt(2*Math.PI)) * Math.exp(-d1*d1/2);
-    
-    // Mise à jour de sigma selon la méthode de Newton-Raphson
-    sigma = sigma - diff / vega;
-    
-    // Empêcher sigma de devenir négatif ou trop petit
-    if (sigma <= 0.001) {
-      sigma = 0.001;
-    }
-    
-    // Empêcher sigma de devenir trop grand
-    if (sigma > 5) {
-      sigma = 5;
-    }
-    
-    iteration++;
-  }
-  
-  // Retourner la volatilité implicite
-  return sigma;
-};
-
-// Swap pricing
-export const calculateSwapPrice = (forwards: number[], times: number[], r: number): number => {
-  let sum = 0;
-  for (let i = 0; i < forwards.length; i++) {
-    sum += forwards[i] * Math.exp(-r * times[i]);
-  }
-  return sum / forwards.length;
-};
-
-/**
- * Canonical time-to-maturity (in years, ACT/365.25).
- * Both dates are parsed as LOCAL dates (no timezone shift).
- * The maturity day is fully included (end-of-day convention).
- */
-export const calculateTimeToMaturity = (maturityDate: string, valuationDate: string): number => {
-  const [my, mm, md] = maturityDate.split('-').map(Number);
-  const [vy, vm, vd] = valuationDate.split('-').map(Number);
-  const maturity = new Date(my, (mm || 1) - 1, (md || 1) + 1); // end-of-day → midnight of next day
-  const valuation = new Date(vy, (vm || 1) - 1, vd || 1);       // start-of-day
-
-  if (valuation >= maturity) return 0;
-
-  const diffMs = maturity.getTime() - valuation.getTime();
-  return diffMs / (365.25 * 24 * 60 * 60 * 1000);
-};
-
-/**
- * Canonical DTE (days to expiry): integer days derived from TTM.
- * Consistent everywhere: Strategy Builder, Hedging Instruments, Pricers.
- */
-export const getDte = (maturityDate: string, valuationDate: string): number => {
-  const ttmYears = calculateTimeToMaturity(maturityDate, valuationDate);
-  return Math.max(0, Math.round(ttmYears * 365.25));
-};
-
-// Strategy payoff calculation utility
-export const calculateStrategyPayoffAtPrice = (components: any[], price: number, spotPrice: number): number => {
-  let totalPayoff = 0;
-  
-  components.forEach(comp => {
-    const strike = comp.strikeType === 'percent' 
-      ? spotPrice * (comp.strike / 100) 
-      : comp.strike;
-    
-    let payoff = 0;
-    
-    if (comp.type === 'swap') {
-      // For swaps, the payoff is the difference between the price and the strike
-      payoff = (price - strike);
-    } else if (comp.type.includes('knockout') || comp.type.includes('knockin')) {
-      // Handle barrier options
-      const barrier = comp.barrierType === 'percent' 
-        ? spotPrice * (comp.barrier / 100) 
-        : comp.barrier;
-      
-      const secondBarrier = comp.type.includes('double') 
-        ? (comp.barrierType === 'percent' 
-          ? spotPrice * (comp.secondBarrier / 100) 
-          : comp.secondBarrier) 
-        : undefined;
-        
-      // Determine if the barrier is breached
-      let isBarrierBroken = false;
-      
-      if (comp.type.includes('double')) {
-        // Double barrier options
-        const upperBarrier = Math.max(barrier, secondBarrier || 0);
-        const lowerBarrier = Math.min(barrier, secondBarrier || Infinity);
-        isBarrierBroken = price >= upperBarrier || price <= lowerBarrier;
-      } else if (comp.type.includes('reverse')) {
-        // Reverse barrier options
-        if (comp.type.includes('put')) {
-          // Put Reverse: barrier breached if price is above
-          isBarrierBroken = price >= barrier;
-        } else {
-          // Call Reverse: barrier breached if price is below
-          isBarrierBroken = price <= barrier;
-        }
-      } else {
-        // Standard barrier options
-        if (comp.type.includes('put')) {
-          // Put: barrier breached if price is below
-          isBarrierBroken = price <= barrier;
-        } else {
-          // Call: barrier breached if price is above
-          isBarrierBroken = price >= barrier;
-        }
-      }
-      
-      // Calculate the base payoff
-      const isCall = comp.type.includes('call');
-      const basePayoff = isCall 
-        ? Math.max(0, price - strike) 
-        : Math.max(0, strike - price);
-      
-      // Determine the final payoff according to the option type
-      if (comp.type.includes('knockout')) {
-        // For knock-out options, the payoff is zero if the barrier is breached
-        payoff = isBarrierBroken ? 0 : basePayoff;
-      } else { // knockin
-        // For knock-in options, the payoff is non-zero only if the barrier is breached
-        payoff = isBarrierBroken ? basePayoff : 0;
-      }
-    } else if (comp.type === 'call') {
-      // Standard call option
-      payoff = Math.max(0, price - strike);
-    } else if (comp.type === 'put') {
-      // Standard put option
-      payoff = Math.max(0, strike - price);
-    } else if (comp.type === 'forward') {
-      // Forward payoff
-      payoff = price - strike;
-    } else if ([
-      'one-touch', 'no-touch', 'double-touch', 'double-no-touch', 'range-binary', 'outside-binary'
-    ].includes(comp.type)) {
-      // Options digitales : payoff = rebate si condition atteinte
-      const digitalBarrier = comp.barrierType === 'percent' ? spotPrice * (comp.barrier || 0) / 100 : (comp.barrier || 0);
-      const digitalSecondBarrier = comp.barrierType === 'percent' ? spotPrice * (comp.secondBarrier || 0) / 100 : (comp.secondBarrier || 0);
-      const rebate = (comp.rebate || 1) / 100;
-      let conditionMet = false;
-      switch(comp.type) {
-        case 'one-touch':
-          conditionMet = price >= digitalBarrier;
-          break;
-        case 'no-touch':
-          conditionMet = price < digitalBarrier;
-          break;
-        case 'double-touch':
-          conditionMet = price >= digitalBarrier || price <= digitalSecondBarrier;
-          break;
-        case 'double-no-touch':
-          conditionMet = price < digitalBarrier && price > digitalSecondBarrier;
-          break;
-        case 'range-binary':
-          conditionMet = price <= digitalBarrier && price >= strike;
-          break;
-        case 'outside-binary':
-          conditionMet = price > digitalBarrier || price < strike;
-          break;
-      }
-      payoff = conditionMet ? rebate : 0;
-    }
-    
-    // Add the payoff to the total taking into account the quantity
-    totalPayoff += payoff * (comp.quantity / 100);
-  });
-  
-  return totalPayoff;
-};
-
 import React, { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import StrategyImportService from '../services/StrategyImportService';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
@@ -916,7 +42,42 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast";
 import ZeroCostStrategies from '@/components/ZeroCostStrategies';
 import ZeroCostTab from '@/components/ZeroCostTab';
-import { PricingService } from '@/services/PricingService';
+import {
+  formatDateLocal,
+  calculateUnderlyingPrice,
+  calculateBarrierOptionClosedForm,
+  calculateBarrierOptionPrice,
+  calculateDigitalOptionPrice,
+  calculateVanillaOptionMonteCarlo,
+  calculatePricesFromPaths,
+  calculateCommodityForwardPrice,
+  discountFactorContinuous,
+  presentValueForwardPayoff,
+  calculateSwapPrice,
+  calculateTimeToMaturity,
+  clampOptionPriceNonNegative,
+  daysToMaturityFromYearsAct36525,
+  dteClampedForVolatilitySurface,
+  getDte,
+  calculateImpliedVolatility as solveImpliedVolatilityDecimal,
+  calculateBlack76Price,
+  calculateBlackScholesSpotPrice,
+  calculateGarmanKohlhagenPrice,
+  calculateStrategyPayoffAtPrice,
+  calculateGreeks,
+  strategyBuilderAnnualPercentToDecimal,
+  impliedVolSurfacePointToDecimal,
+  orderedDoubleBarrierLevels,
+  generateStrategyBuilderPricePaths,
+  generateStrategyBuilderPayoffDiagramPaths,
+  generateBarrierMonteCarloPathsForPricing,
+  calculateStrategyBuilderOptionPrice,
+  isValidDateString,
+  getDataDateRange,
+  getBacktestExerciseType,
+  getThirdFridayOfMonth,
+  findClosestDateInData,
+} from '@/services/PricingService';
 import { Commodity, CommodityCategory, fetchCommoditiesData } from '@/services/commodityApi';
 import { useInterestRates } from '@/hooks/useInterestRates';
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -933,6 +94,8 @@ import {
 } from '@/lib/ticker-peek-pro/barchart';
 import { interpolateSurface } from '@/lib/ticker-peek-pro/volSurfaceInterpolation';
 import { getOrBuildCurve, interpolatePrice as interpolateFuturesPrice, type FuturesCurvePoint } from '@/lib/ticker-peek-pro/futuresCurve';
+
+export { formatDateLocal } from '@/services/PricingService';
 
 // Currency Pair interface
 interface CurrencyPair {
@@ -1177,42 +340,6 @@ interface PriceRange {
   max: number;
   probability: number;
 }
-
-// ============================================================================
-// COMMODITY PRICING HELPERS
-// ============================================================================
-
-/**
- * Calculate Cost of Carry for commodities
- * b = r + storage_cost - convenience_yield
- */
-const calculateCostOfCarry = (params: FXStrategyParams): number => {
-  const r = params.interestRate / 100;
-  return r;
-};
-
-/**
- * Get risk-free rate from params (commodity)
- */
-const getRiskFreeRate = (params: FXStrategyParams): number => {
-  return params.interestRate / 100;
-};
-
-/**
- * Legacy compatibility: calculate cost of carry from FX params
- * b = r_d - r_f
- */
-const calculateCostOfCarryLegacy = (params: FXStrategyParams): number => {
-  if (params.domesticRate !== undefined && params.foreignRate !== undefined) {
-    return (params.domesticRate - params.foreignRate) / 100;
-  }
-  // Fallback to commodity params
-  return calculateCostOfCarry(params);
-};
-
-/** Format date as local YYYY-MM-DD (avoids UTC shift when displaying maturity) */
-export const formatDateLocal = (d: Date): string =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 /** Get maturity convention from Settings (Pricing): last-month-day | third-friday */
 const getMaturityConvention = (): 'last-month-day' | 'third-friday' => {
@@ -1895,13 +1022,12 @@ const Index = () => {
       const n = typeof v === 'string' ? parseFloat(String(v).replace(',', '.')) : Number(v);
       return Number.isNaN(n) || n <= 0 ? null : n;
     };
-    const toDecimalIv = (raw: number) => (raw > 1 ? raw / 100 : raw);
     let z: (number | null)[][] = dtes.map(d =>
       strikes.map(s => {
         const point = filtered.find(p => p.dte === d && p.strike === s);
         const raw = parseIv(point?.iv);
         if (raw == null) return null;
-        return toDecimalIv(raw);
+        return impliedVolSurfacePointToDecimal(raw);
       })
     );
     z = interpolateSurface(z, strikes, dtes);
@@ -2408,14 +1534,19 @@ const Index = () => {
           
           // Calculate price with proper volatility
           if (option.type === 'forward') {
-            option.price = (result.forward - strike) * Math.exp(-getRiskFreeRate(params) * result.timeToMaturity);
+            option.price = presentValueForwardPayoff(
+              result.forward,
+              strike,
+              strategyBuilderAnnualPercentToDecimal(params.interestRate),
+              result.timeToMaturity
+            );
           } else if (option.type === 'call' || option.type === 'put') {
             option.price = calculateGarmanKohlhagenPrice(
               option.type,
               result.forward,
               strike,
-              getRiskFreeRate(params),
-              calculateCostOfCarry(params),
+              strategyBuilderAnnualPercentToDecimal(params.interestRate),
+              strategyBuilderAnnualPercentToDecimal(params.interestRate),
               result.timeToMaturity,
               volatilityToUse
             );
@@ -2434,9 +1565,9 @@ const Index = () => {
                 undefined;
                 
               if (barrierPricingModel === 'closed-form') {
-                const underlyingResult = PricingService.calculateUnderlyingPrice(
+                const underlyingResult = calculateUnderlyingPrice(
                   params.spotPrice,
-                  getRiskFreeRate(params),
+                  strategyBuilderAnnualPercentToDecimal(params.interestRate),
                   params.foreignRate/100,
                   result.timeToMaturity
                 );
@@ -2444,16 +1575,16 @@ const Index = () => {
                   option.type,
                   underlyingResult.price,
                   strike,
-                  getRiskFreeRate(params),
+                  strategyBuilderAnnualPercentToDecimal(params.interestRate),
                   result.timeToMaturity,
                   volatilityToUse,
                   barrier,
                   secondBarrier
                 );
               } else {
-                const underlyingResult = PricingService.calculateUnderlyingPrice(
+                const underlyingResult = calculateUnderlyingPrice(
                   params.spotPrice,
-                  getRiskFreeRate(params),
+                  strategyBuilderAnnualPercentToDecimal(params.interestRate),
                   params.foreignRate/100,
                   result.timeToMaturity
                 );
@@ -2461,7 +1592,7 @@ const Index = () => {
                   option.type,
                   underlyingResult.price,
                   strike,
-                  getRiskFreeRate(params),
+                  strategyBuilderAnnualPercentToDecimal(params.interestRate),
                   result.timeToMaturity,
                   volatilityToUse,
                   barrier,
@@ -2491,9 +1622,9 @@ const Index = () => {
                   strategyOption.secondBarrier) : 
                 undefined;
                 
-              const underlyingResult = PricingService.calculateUnderlyingPrice(
+              const underlyingResult = calculateUnderlyingPrice(
                 params.spotPrice,
-                getRiskFreeRate(params),
+                strategyBuilderAnnualPercentToDecimal(params.interestRate),
                 params.foreignRate/100,
                 result.timeToMaturity
               );
@@ -2501,7 +1632,7 @@ const Index = () => {
                 option.type,
                 underlyingResult.price,
                 strike,
-                getRiskFreeRate(params),
+                strategyBuilderAnnualPercentToDecimal(params.interestRate),
                 result.timeToMaturity,
                 volatilityToUse,
                 barrier,
@@ -2529,518 +1660,6 @@ const Index = () => {
     setResults(updatedResults);
   };
 
-  // Add this function for Monte Carlo simulation of barrier options
-  const calculateBarrierOptionPrice = (
-    optionType: string,
-    S: number,      // Current price
-    K: number,      // Strike price
-    r: number,      // Risk-free rate
-    t: number,      // Time to maturity in years
-    sigma: number,  // Volatility
-    barrier: number, // Barrier level
-    secondBarrier?: number, // Second barrier for double barrier options
-    numSimulations: number = 1000 // Number of simulations
-  ) => {
-    // Generate a simple price path for this specific option
-      const numSteps = Math.max(252 * t, 50); // At least 50 steps
-      const dt = t / numSteps;
-      
-    // Generate paths for just this one option
-    const paths = [];
-    for (let i = 0; i < numSimulations; i++) {
-      const path = [S]; // Start with current price
-      
-      // Simulate price path
-      for (let step = 0; step < numSteps; step++) {
-        const previousPrice = path[path.length - 1];
-        // Generate random normal variable
-        const randomWalk = Math.random() * 2 - 1; // Simple approximation of normal distribution
-        
-        // Update price using geometric Brownian motion
-        const nextPrice = previousPrice * Math.exp(
-          (r - 0.5 * Math.pow(sigma, 2)) * dt + 
-          sigma * Math.sqrt(dt) * randomWalk
-        );
-        
-        path.push(nextPrice);
-      }
-      
-      paths.push(path);
-    }
-    
-    // Use our new function to calculate the price
-    const optionPrice = calculatePricesFromPaths(
-      optionType,
-      S,
-      K,
-      r,
-      numSteps, // The final index in the path
-      paths,
-      barrier,
-      secondBarrier
-    );
-
-    // S'assurer que le prix de l'option n'est jamais négatif
-    return Math.max(0, optionPrice);
-  };
-
-  // Digital option Monte Carlo pricing
-  const calculateDigitalOptionPrice = (
-    optionType: string,
-    S: number,      // Current price
-    K: number,      // Strike/Barrier level
-    r: number,      // Risk-free rate
-    t: number,      // Time to maturity
-    sigma: number,  // Volatility
-    barrier?: number,
-    secondBarrier?: number,
-    numSimulations: number = 10000,
-    rebate: number = 1
-  ) => {
-    // Conversion du rebate en pourcentage
-    const rebateDecimal = rebate / 100;
-    
-    let payoutSum = 0;
-    // Amélioration de la précision de la simulation
-    const stepsPerDay = 4;
-    const totalSteps = Math.max(252 * t * stepsPerDay, 50);
-    const dt = t / totalSteps;
-    for (let sim = 0; sim < numSimulations; sim++) {
-      let price = S;
-      let touched = false;
-      let touchedSecond = false;
-      for (let step = 0; step < totalSteps; step++) {
-        const z = Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random());
-        price = price * Math.exp((r - 0.5 * sigma * sigma) * dt + sigma * Math.sqrt(dt) * z);
-        switch (optionType) {
-          case 'one-touch':
-            if (barrier !== undefined && price >= barrier) touched = true;
-            break;
-          case 'no-touch':
-            if (barrier !== undefined && price >= barrier) touched = true;
-            break;
-          case 'double-touch':
-            if (barrier !== undefined && price >= barrier) touched = true;
-            if (secondBarrier !== undefined && price <= secondBarrier) touchedSecond = true;
-            break;
-          case 'double-no-touch':
-            if ((barrier !== undefined && price >= barrier) || (secondBarrier !== undefined && price <= secondBarrier)) touched = true;
-            break;
-          case 'range-binary':
-            if (barrier !== undefined && K !== undefined && price >= K && price <= barrier) touched = true;
-            break;
-          case 'outside-binary':
-            if (barrier !== undefined && K !== undefined && (price <= K || price >= barrier)) touched = true;
-            break;
-        }
-      }
-      switch (optionType) {
-        case 'one-touch':
-          if (touched) payoutSum += rebateDecimal;
-          break;
-        case 'no-touch':
-          if (!touched) payoutSum += rebateDecimal;
-          break;
-        case 'double-touch':
-          if (touched || touchedSecond) payoutSum += rebateDecimal;
-          break;
-        case 'double-no-touch':
-          if (!touched) payoutSum += rebateDecimal;
-          break;
-        case 'range-binary':
-          if (touched) payoutSum += rebateDecimal;
-          break;
-        case 'outside-binary':
-          if (touched) payoutSum += rebateDecimal;
-          break;
-      }
-    }
-    // Retourner le prix sans facteur d'échelle arbitraire
-    return Math.exp(-r * t) * (payoutSum / numSimulations);
-  };
-
-  // Modify the calculateOptionPrice function to handle barrier options
-  // FX Forward Pricing Model
-  const calculateFXForwardPrice = (S: number, r_d: number, r_f: number, t: number) => {
-    return S * Math.exp((r_d - r_f) * t);
-  };
-
-  // Garman-Kohlhagen FX Option Pricing Model
-  const calculateGarmanKohlhagenPrice = (type: string, S: number, K: number, r_d: number, r_f: number, t: number, sigma: number) => {
-    const d1 = (Math.log(S / K) + (r_d - r_f + (sigma * sigma) / 2) * t) / (sigma * Math.sqrt(t));
-    const d2 = d1 - sigma * Math.sqrt(t);
-    
-    const CND = (x: number) => (1 + erf(x / Math.sqrt(2))) / 2;
-    
-    if (type === 'call') {
-      return S * Math.exp(-r_f * t) * CND(d1) - K * Math.exp(-r_d * t) * CND(d2);
-    } else {
-      return K * Math.exp(-r_d * t) * CND(-d2) - S * Math.exp(-r_f * t) * CND(-d1);
-    }
-  };
-
-  // Nouvelle fonction pour calculer les options vanilla avec Monte Carlo
-  const calculateVanillaOptionMonteCarlo = (
-    optionType: string,
-    S: number,      // Current price
-    K: number,      // Strike price
-    r_d: number,    // Domestic risk-free rate
-    r_f: number,    // Foreign risk-free rate 
-    t: number,      // Time to maturity in years
-    sigma: number,  // Volatility
-    numSimulations: number = 1000 // Number of simulations
-  ) => {
-    let payoffSum = 0;
-    
-    for (let i = 0; i < numSimulations; i++) {
-      // Generate random normal variable (using Box-Muller transform for better accuracy)
-      const u1 = Math.random();
-      const u2 = Math.random();
-      const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-      
-      // Simulate final FX price using geometric Brownian motion
-      const finalPrice = S * Math.exp(
-        (r_d - r_f - 0.5 * sigma * sigma) * t + 
-        sigma * Math.sqrt(t) * z
-      );
-      
-      // Calculate payoff
-      let payoff = 0;
-      if (optionType === 'call') {
-        payoff = Math.max(finalPrice - K, 0);
-      } else if (optionType === 'put') {
-        payoff = Math.max(K - finalPrice, 0);
-      }
-      
-      payoffSum += payoff;
-    }
-    
-    // Calculate average payoff and discount to present value
-    const averagePayoff = payoffSum / numSimulations;
-    const optionPrice = averagePayoff * Math.exp(-r_d * t);
-    
-    return Math.max(0, optionPrice);
-  };
-
-  const calculateOptionPrice = (type, S, K, r, t, sigma, date?, optionIndex?) => {
-    // Utilize the volatility implied if available
-    let effectiveSigma = sigma;
-    if (date && useImpliedVol) {
-      const monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
-      const optionKey = optionIndex !== undefined ? `${type}-${optionIndex}` : undefined;
-      const iv = getImpliedVolatility(monthKey, optionKey);
-      
-      if (iv !== null) {
-        effectiveSigma = iv / 100;
-      }
-    }
-
-    // If it's a barrier option, use Monte Carlo simulation or closed-form solution based on flag
-    if (type.includes('knockout') || type.includes('knockin')) {
-      // Find the option in the strategy to get barrier values
-      const option = strategy.find(opt => opt.type === type);
-      if (!option) return 0;
-
-      // Calculate barrier values
-      const barrier = option.barrierType === 'percent' ? 
-        params.spotPrice * (option.barrier / 100) : 
-        option.barrier;
-        
-      const secondBarrier = option.type.includes('double') ? 
-        (option.barrierType === 'percent' ? 
-          params.spotPrice * (option.secondBarrier / 100) : 
-          option.secondBarrier) : 
-        undefined;
-      
-      // Use closed-form solution if enabled for both simple and double barrier options
-      if (barrierPricingModel === 'closed-form') {
-        return Math.max(0, calculateBarrierOptionClosedForm(
-          type,
-          S,
-          K,
-          r,
-          t,
-          effectiveSigma,
-          barrier,
-          secondBarrier
-        ));
-      } else {
-        // Otherwise use Monte Carlo simulation
-        return Math.max(0, calculateBarrierOptionPrice(
-        type,
-        S,
-        K,
-        r,
-        t,
-        effectiveSigma,
-        barrier,
-        secondBarrier,
-          barrierOptionSimulations // Use the number of simulations specific to barrier options
-        ));
-      }
-    }
-    
-    // Digital Options Calculations
-    if (type.includes('one-touch') || type.includes('no-touch') || 
-        type.includes('double-touch') || type.includes('double-no-touch') ||
-        type.includes('range-binary') || type.includes('outside-binary')) {
-      // Find the option in the strategy to get digital params
-      const option = strategy.find(opt => opt.type === type);
-      if (!option) return 0;
-      const barrier = option.barrierType === 'percent' ? 
-        params.spotPrice * (option.barrier / 100) : 
-        option.barrier;
-      const secondBarrier = option.type.includes('double') ? 
-        (option.barrierType === 'percent' ? 
-          params.spotPrice * (option.secondBarrier / 100) : 
-          option.secondBarrier) : 
-        undefined;
-      const rebate = option.rebate !== undefined ? option.rebate : 1;
-      const numSimulations = barrierOptionSimulations || 10000;
-      return calculateDigitalOptionPrice(
-        type,
-        S,
-        K,
-        r,
-        t,
-        effectiveSigma,
-        barrier,
-        secondBarrier,
-        numSimulations,
-        rebate
-      );
-    }
-    
-    // For standard options, use appropriate pricing model
-    let price = 0;
-    if (optionPricingModel === 'monte-carlo') {
-      // Use Monte Carlo for vanilla options
-      price = calculateVanillaOptionMonteCarlo(
-        type, 
-        S, 
-        K, 
-        params.domesticRate / 100, 
-        params.foreignRate / 100, 
-        t, 
-        effectiveSigma,
-        1000 // Number of simulations for vanilla options
-      );
-    } else {
-      // Use traditional Black-Scholes (default)
-      const d1 = (Math.log(S/K) + (r + effectiveSigma**2/2)*t) / (effectiveSigma*Math.sqrt(t));
-      const d2 = d1 - effectiveSigma*Math.sqrt(t);
-      
-      const Nd1 = (1 + erf(d1/Math.sqrt(2)))/2;
-      const Nd2 = (1 + erf(d2/Math.sqrt(2)))/2;
-      
-      if (type === 'call') {
-        price = S*Nd1 - K*Math.exp(-r*t)*Nd2;
-      } else { // put
-        price = K*Math.exp(-r*t)*(1-Nd2) - S*(1-Nd1);
-      }
-    }
-    
-    // S'assurer que le prix de l'option n'est jamais négatif
-    return Math.max(0, price);
-  };
-
-  // Error function (erf) implementation
-  const erf = (x) => {
-    const a1 =  0.254829592;
-    const a2 = -0.284496736;
-    const a3 =  1.421413741;
-    const a4 = -1.453152027;
-    const a5 =  1.061405429;
-    const p  =  0.3275911;
-    
-    const sign = (x < 0) ? -1 : 1;
-    x = Math.abs(x);
-    
-    const t = 1.0/(1.0 + p*x);
-    const y = 1.0 - ((((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t*Math.exp(-x*x));
-    
-    return sign*y;
-  };
-
-  // Generate price paths for the entire period using Monte Carlo
-  const generatePricePathsForPeriod = (months, startDate, numSimulations = 1000) => {
-    const paths = [];
-    const valuationStr = formatDateLocal(startDate);
-    const timeToMaturities = months.map(date => {
-      return calculateTimeToMaturity(formatDateLocal(date), valuationStr);
-    });
-    
-    const maxMaturity = Math.max(...timeToMaturities);
-    const numSteps = Math.max(252 * maxMaturity, 50); // At least 50 steps, or daily steps
-    const dt = maxMaturity / numSteps;
-    
-    // Pre-calculate monthly indices in the path
-    const monthlyIndices = timeToMaturities.map(t => Math.floor(t / maxMaturity * numSteps));
-    
-    // Generate paths
-    for (let i = 0; i < numSimulations; i++) {
-      const path = [params.spotPrice]; // Start with current spot price
-      
-      // Simulate full path
-      for (let step = 0; step < numSteps; step++) {
-        const previousPrice = path[path.length - 1];
-        // Generate random normal variable
-        const randomWalk = Math.random() * 2 - 1; // Simple approximation of normal distribution
-        
-        // Update price using FX geometric Brownian motion
-        const nextPrice = previousPrice * Math.exp(
-          (params.domesticRate/100 - params.foreignRate/100 - 0.5 * Math.pow(realPriceParams.volatility, 2)) * dt + 
-          realPriceParams.volatility * Math.sqrt(dt) * randomWalk
-        );
-        
-        path.push(nextPrice);
-      }
-      
-      paths.push(path);
-    }
-    
-    return { paths, monthlyIndices };
-  };
-
-  // Calculate option prices and payoffs from price paths
-  const calculatePricesFromPaths = (
-    optionType, 
-    S, 
-    K, 
-    r, 
-    maturityIndex,
-    paths,
-    barrier?,
-    secondBarrier?
-  ) => {
-    let priceSum = 0;
-    const numSimulations = paths.length;
-    
-    for (let i = 0; i < numSimulations; i++) {
-      const path = paths[i];
-      const finalPrice = path[maturityIndex];
-      let payoff = 0;
-      let barrierHit = false;
-      
-      // Check for barrier events along the path up to maturity
-      if (barrier && (optionType.includes('knockout') || optionType.includes('knockin'))) {
-        for (let step = 0; step <= maturityIndex; step++) {
-          const pathPrice = path[step];
-          
-          // Check barrier logic based on option type
-          const isAboveBarrier = pathPrice >= barrier;
-          const isBelowBarrier = pathPrice <= barrier;
-          
-          // Apply same barrier logic as in the original function
-          if (optionType.includes('knockout')) {
-            if (optionType.includes('reverse')) {
-              if (optionType.includes('put')) {
-                // Put Reverse KO: Knocked out if price goes ABOVE barrier
-                if (isAboveBarrier) {
-                  barrierHit = true;
-                  break;
-                }
-              } else {
-                // Call Reverse KO: Knocked out if price goes BELOW barrier
-                if (isBelowBarrier) {
-                  barrierHit = true;
-                  break;
-                }
-              }
-            } else if (optionType.includes('double')) {
-              // Double KO: Knocked out if price crosses either barrier
-              const upperBarrier = Math.max(barrier, secondBarrier || 0);
-              const lowerBarrier = Math.min(barrier, secondBarrier || Infinity);
-              
-              // Vérifier si le prix touche soit la barrière supérieure, soit la barrière inférieure
-              // Pour un Call Double KO, l'option est invalidée si le prix monte trop haut ou descend trop bas
-              if ((pathPrice >= upperBarrier) || (pathPrice <= lowerBarrier)) {
-                barrierHit = true;
-                break;
-              }
-            } else {
-              if (optionType.includes('put')) {
-                // Put KO: Knocked out if price goes BELOW barrier
-                if (isBelowBarrier) {
-                  barrierHit = true;
-                  break;
-                }
-              } else {
-                // Call KO: Knocked out if price goes ABOVE barrier
-                if (isAboveBarrier) {
-                  barrierHit = true;
-                  break;
-                }
-              }
-            }
-          } else if (optionType.includes('knockin')) {
-            if (optionType.includes('reverse')) {
-              if (optionType.includes('put')) {
-                // Put Reverse KI: Knocked in if price goes ABOVE barrier
-                if (isAboveBarrier) {
-                  barrierHit = true;
-                }
-              } else {
-                // Call Reverse KI: Knocked in if price goes BELOW barrier
-                if (isBelowBarrier) {
-                  barrierHit = true;
-                }
-              }
-            } else if (optionType.includes('double')) {
-              // Double KI: Knocked in if price crosses either barrier
-              const upperBarrier = Math.max(barrier, secondBarrier || 0);
-              const lowerBarrier = Math.min(barrier, secondBarrier || Infinity);
-              if (pathPrice >= upperBarrier || pathPrice <= lowerBarrier) {
-                barrierHit = true;
-              }
-            } else {
-              if (optionType.includes('put')) {
-                // Put KI: Knocked in if price goes BELOW barrier
-                if (isBelowBarrier) {
-                  barrierHit = true;
-                }
-              } else {
-                // Call KI: Knocked in if price goes ABOVE barrier
-                if (isAboveBarrier) {
-                  barrierHit = true;
-                }
-              }
-            }
-          }
-        }
-      }
-      
-      // Calculate payoff
-      const isCall = optionType.includes('call') || (!optionType.includes('put') && !optionType.includes('swap'));
-      const baseOptionPayoff = isCall ? 
-        Math.max(0, finalPrice - K) : 
-        Math.max(0, K - finalPrice);
-      
-      if (!barrier) {
-        // Standard option
-        payoff = baseOptionPayoff;
-      } else if (optionType.includes('knockout')) {
-        // Knockout option
-        // Une fois que la barrière est touchée (barrierHit=true), l'option est invalidée définitivement
-        // et le payoff reste à zéro, même si le prix revient dans la zone favorable
-        if (!barrierHit) {
-          payoff = baseOptionPayoff;
-        }
-      } else if (optionType.includes('knockin')) {
-        // Knockin option
-        if (barrierHit) {
-          payoff = baseOptionPayoff;
-        }
-      }
-      
-      priceSum += payoff;
-    }
-    
-    // Average payoff discounted back to present value
-    const t = maturityIndex / (252 * paths[0].length); // Approximate time to maturity
-    return (priceSum / numSimulations) * Math.exp(-r * t);
-  };
-
   // Modify the calculatePayoff function to handle barrier options
   const calculatePayoff = () => {
     if (strategy.length === 0) return;
@@ -3048,26 +1667,15 @@ const Index = () => {
     const spotPrice = params.spotPrice;
     const priceRange = Array.from({length: 101}, (_, i) => spotPrice * (0.5 + i * 0.01));
     
-    // Generate Monte Carlo paths for 1 year (standard for payoff diagrams)
-    const numSteps = 252; // Daily steps for a year
-    const numSimulations = 500; // Fewer simulations for the payoff diagram
-    const paths = [];
-    
-    for (let i = 0; i < numSimulations; i++) {
-      const path = [spotPrice];
-      const dt = 1/252; // Daily step
-      
-      for (let step = 0; step < numSteps; step++) {
-        const previousPrice = path[path.length - 1];
-        const randomWalk = Math.random() * 2 - 1;
-        const nextPrice = previousPrice * Math.exp(
-          (params.domesticRate/100 - params.foreignRate/100 - Math.pow(realPriceParams.volatility, 2)/2) * dt + 
-          realPriceParams.volatility * Math.sqrt(dt) * randomWalk
-        );
-        path.push(nextPrice);
-      }
-      paths.push(path);
-    }
+    const numSteps = 252;
+    const paths = generateStrategyBuilderPayoffDiagramPaths({
+      spotPrice,
+      domesticRatePercent: params.domesticRate,
+      foreignRatePercent: params.foreignRate,
+      sigmaDecimal: realPriceParams.volatility,
+      numSteps,
+      numSimulations: 500,
+    });
 
     const payoffCalculation = priceRange.map(price => {
       let totalPayoff = 0;
@@ -3089,24 +1697,20 @@ const Index = () => {
               option.type,
               spotPrice,
               strike,
-              getRiskFreeRate(params),
-              calculateCostOfCarry(params),
+              strategyBuilderAnnualPercentToDecimal(params.interestRate),
+              strategyBuilderAnnualPercentToDecimal(params.interestRate),
               1, // 1 year for payoff diagrams
               option.volatility/100
             );
           } else {
-            // Black-Scholes fallback
-            const d1 = (Math.log(spotPrice/strike) + (params.domesticRate/100 + (option.volatility/100)**2/2)*1) / ((option.volatility/100)*Math.sqrt(1));
-            const d2 = d1 - (option.volatility/100)*Math.sqrt(1);
-            
-            const Nd1 = (1 + erf(d1/Math.sqrt(2)))/2;
-            const Nd2 = (1 + erf(d2/Math.sqrt(2)))/2;
-            
-            if (option.type === 'call') {
-              optionPremium = spotPrice*Nd1 - strike*Math.exp(-params.domesticRate/100*1)*Nd2;
-            } else { // put
-              optionPremium = strike*Math.exp(-params.domesticRate/100*1)*(1-Nd2) - spotPrice*(1-Nd1);
-            }
+            optionPremium = calculateBlackScholesSpotPrice(
+              option.type,
+              spotPrice,
+              strike,
+              params.domesticRate / 100,
+              1,
+              option.volatility / 100
+            );
           }
         } else if (option.type.includes('knockout') || option.type.includes('knockin')) {
           // Use Monte Carlo for barrier options
@@ -3124,7 +1728,7 @@ const Index = () => {
           option.type,
           spotPrice,
           strike,
-          getRiskFreeRate(params),
+          strategyBuilderAnnualPercentToDecimal(params.interestRate),
             numSteps,
             paths,
             barrier,
@@ -3137,138 +1741,11 @@ const Index = () => {
           // Pour les options digitales, utiliser une approximation simple pour les graphiques de payoff
           const rebateDecimal = (option.rebate || 5) / 100;
           // Approximation simple : prime = probability * rebate * discount factor
-          optionPremium = 0.5 * rebateDecimal * Math.exp(-params.domesticRate/100 * 1);
+          optionPremium = 0.5 * rebateDecimal * discountFactorContinuous(params.domesticRate/100, 1);
         }
 
-        // Calculate payoff at this price point
-        let payoff = 0;
-        
-        if (option.type === 'call') {
-          payoff = Math.max(0, price - strike);
-        } else if (option.type === 'put') {
-          payoff = Math.max(0, strike - price);
-        } else if (option.type === 'swap') {
-          payoff = spotPrice - price;
-        } else if (option.type.includes('knockout') || option.type.includes('knockin')) {
-          // Approche simplifiée pour les graphiques de payoff des options à barrière
-          // Note: Ceci est une approximation pour la visualisation, qui ne capture pas
-          // complètement la nature path-dependent de ces options
-          
-          const barrier = option.barrierType === 'percent' ? 
-            params.spotPrice * (option.barrier / 100) : 
-            option.barrier;
-          
-          const secondBarrier = option.type.includes('double') ? 
-            (option.barrierType === 'percent' ? 
-              params.spotPrice * (option.secondBarrier / 100) : 
-              option.secondBarrier) : 
-            undefined;
-          
-          let isBarrierBroken = false;
-          
-          // Vérifier si le prix franchit une barrière selon le type d'option
-          if (option.type.includes('knockout')) {
-          if (option.type.includes('reverse')) {
-            if (option.type.includes('put')) {
-                // Put Reverse KO: Knocked out si au-dessus de la barrière
-                isBarrierBroken = price >= barrier;
-        } else {
-                // Call Reverse KO: Knocked out si en-dessous de la barrière
-                isBarrierBroken = price <= barrier;
-            }
-          } else if (option.type.includes('double')) {
-              // Double KO: Knocked out si en dehors des deux barrières
-              const upperBarrier = Math.max(barrier, secondBarrier || 0);
-              const lowerBarrier = Math.min(barrier, secondBarrier || Infinity);
-              isBarrierBroken = price >= upperBarrier || price <= lowerBarrier;
-          } else {
-            if (option.type.includes('put')) {
-                // Put Standard KO: Knocked out si en-dessous de la barrière
-                isBarrierBroken = price <= barrier;
-            } else {
-                // Call Standard KO: Knocked out si au-dessus de la barrière
-                isBarrierBroken = price >= barrier;
-              }
-            }
-          } else if (option.type.includes('knockin')) {
-            if (option.type.includes('reverse')) {
-              if (option.type.includes('put')) {
-                // Put Reverse KI: Knocked in si au-dessus de la barrière
-                isBarrierBroken = price >= barrier;
-              } else {
-                // Call Reverse KI: Knocked in si en-dessous de la barrière
-                isBarrierBroken = price <= barrier;
-              }
-            } else if (option.type.includes('double')) {
-              // Double KI: Knocked in si en dehors des deux barrières
-              const upperBarrier = Math.max(barrier, secondBarrier || 0);
-              const lowerBarrier = Math.min(barrier, secondBarrier || Infinity);
-              isBarrierBroken = price >= upperBarrier || price <= lowerBarrier;
-            } else {
-              if (option.type.includes('put')) {
-                // Put Standard KI: Knocked in si en-dessous de la barrière
-                isBarrierBroken = price <= barrier;
-              } else {
-                // Call Standard KI: Knocked in si au-dessus de la barrière
-                isBarrierBroken = price >= barrier;
-              }
-            }
-          }
-          
-          // Calculer le payoff en fonction du type d'option et du franchissement de barrière
-          const isCall = option.type.includes('call');
-          const basePayoff = isCall ? 
-            Math.max(0, price - strike) : 
-            Math.max(0, strike - price);
-          
-          if (option.type.includes('knockout')) {
-            // Pour les options Knock-Out, le payoff est nul si la barrière est franchie
-            payoff = isBarrierBroken ? 0 : basePayoff;
-          } else { // knockin
-            // Pour les options Knock-In, le payoff n'est non-nul que si la barrière est franchie
-            payoff = isBarrierBroken ? basePayoff : 0;
-          }
-        } else if (['one-touch', 'no-touch', 'double-touch', 'double-no-touch', 'range-binary', 'outside-binary'].includes(option.type)) {
-          // Calcul du payoff pour les options digitales
-          const barrier = option.barrierType === 'percent' ? 
-            params.spotPrice * (option.barrier / 100) : 
-            option.barrier;
-          const secondBarrier = option.secondBarrier ? 
-            (option.barrierType === 'percent' ? 
-              params.spotPrice * (option.secondBarrier / 100) : 
-              option.secondBarrier) : undefined;
-          
-          const rebateDecimal = (option.rebate || 5) / 100;
-          let conditionMet = false;
-          
-          switch(option.type) {
-            case 'one-touch':
-              conditionMet = price >= barrier;
-              break;
-            case 'no-touch':
-              conditionMet = price < barrier;
-              break;
-            case 'double-touch':
-              conditionMet = price >= barrier || (secondBarrier && price <= secondBarrier);
-              break;
-            case 'double-no-touch':
-              conditionMet = price < barrier && (!secondBarrier || price > secondBarrier);
-              break;
-            case 'range-binary':
-              const upperBound = Math.max(barrier, secondBarrier || 0);
-              const lowerBound = Math.min(barrier, secondBarrier || Infinity);
-              conditionMet = price <= upperBound && price >= lowerBound;
-              break;
-            case 'outside-binary':
-              const upperBound2 = Math.max(barrier, secondBarrier || 0);
-              const lowerBound2 = Math.min(barrier, secondBarrier || Infinity);
-              conditionMet = price > upperBound2 || price < lowerBound2;
-              break;
-          }
-          
-          // Pour les options digitales, le payoff est le rebate si condition remplie, 0 sinon
-          payoff = conditionMet ? rebateDecimal : 0;
-        }
+        // Payoff is centralized in PricingService to keep Strategy Builder / Hedging Instruments consistent.
+        const payoff = calculateStrategyPayoffAtPrice([option], price, spotPrice);
         
         // Subtract premium for net payoff
         const netPayoff = payoff - optionPremium;
@@ -3382,7 +1859,15 @@ const Index = () => {
     }
 
     // Generate price paths for the entire period (from today's date for accurate calculations)
-    const { paths, monthlyIndices } = generatePricePathsForPeriod(months, calculationStartDate, realPriceParams.numSimulations);
+    const { paths, monthlyIndices } = generateStrategyBuilderPricePaths({
+      monthMaturityStrs: months.map((d) => formatDateLocal(d)),
+      valuationDateStr: formatDateLocal(calculationStartDate),
+      spotPrice: params.spotPrice,
+      domesticRatePercent: params.domesticRate,
+      foreignRatePercent: params.foreignRate,
+      sigmaDecimal: realPriceParams.volatility,
+      numSimulations: realPriceParams.numSimulations,
+    });
 
     // If simulation is enabled, generate new real prices using the first path
     if (realPriceParams.useSimulation) {
@@ -3465,7 +1950,7 @@ const Index = () => {
             barrierOption.type,
             params.spotPrice,
             strike,
-            getRiskFreeRate(params),
+            strategyBuilderAnnualPercentToDecimal(params.interestRate),
             maturityIndex,
             [path],
             barrier,
@@ -3545,8 +2030,10 @@ const Index = () => {
               }
             } else if (option.type.includes('double')) {
               // Double KO: Knocked out si prix en dehors des deux barrières
-              const upperBarrier = Math.max(barrier, secondBarrier || 0);
-              const lowerBarrier = Math.min(barrier, secondBarrier || Infinity);
+              const { lower: lowerBarrier, upper: upperBarrier } = orderedDoubleBarrierLevels(
+                barrier,
+                secondBarrier ?? barrier
+              );
               barrierCrossed = realPrice >= upperBarrier || realPrice <= lowerBarrier;
             } else {
               if (option.type.includes('put')) {
@@ -3604,8 +2091,10 @@ const Index = () => {
               }
             } else if (option.type.includes('double')) {
               // Double KI: Knocked in si prix en dehors des deux barrières
-              const upperBarrier = Math.max(barrier, secondBarrier || 0);
-              const lowerBarrier = Math.min(barrier, secondBarrier || Infinity);
+              const { lower: lowerBarrier, upper: upperBarrier } = orderedDoubleBarrierLevels(
+                barrier,
+                secondBarrier ?? barrier
+              );
               barrierHit = realPrice >= upperBarrier || realPrice <= lowerBarrier;
             } else {
               if (option.type.includes('put')) {
@@ -3631,10 +2120,10 @@ const Index = () => {
 
     // Per-maturity rate: interpolated from Rate Explorer when "Use real interest rate" is on
     const getRateForMaturity = (ttmYears: number): number =>
-      useRealInterestRate && getSelectedCurrency ? getRate(getSelectedCurrency, ttmYears) : getRiskFreeRate(params);
+      useRealInterestRate && getSelectedCurrency ? getRate(getSelectedCurrency, ttmYears) : strategyBuilderAnnualPercentToDecimal(params.interestRate);
     const swapR = timeToMaturities.length > 0
       ? timeToMaturities.reduce((acc, tt) => acc + getRateForMaturity(tt), 0) / timeToMaturities.length
-      : getRiskFreeRate(params);
+      : strategyBuilderAnnualPercentToDecimal(params.interestRate);
     const swapForwards = months.map((_, idx) => {
       const mKey = `${months[idx].getFullYear()}-${months[idx].getMonth() + 1}`;
       const rate = getRateForMaturity(timeToMaturities[idx]);
@@ -3649,9 +2138,9 @@ const Index = () => {
       
       const maturityIndex = monthlyIndices[i]; // Add the maturityIndex definition
       const t = timeToMaturities[i]; // raw ACT/365.25 TTM for pricing & rate
-      const dte = Math.max(0, Math.round(t * 365.25)); // integer days for IV/forward curve lookups only
+      const dte = daysToMaturityFromYearsAct36525(t); // integer days for IV/forward curve lookups only
       const r = getRateForMaturity(t);
-
+      
       // Get forward price: TPP interpolated by maturity, else manual or cost-of-carry
         const monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
       const forward = (() => {
@@ -3710,7 +2199,7 @@ const Index = () => {
                 const currentType = option.type.includes('put') ? 'put' : 'call';
                 
                 // Risk-free rate for this maturity (row-level r)
-                const b = calculateCostOfCarry(params);
+                const b = strategyBuilderAnnualPercentToDecimal(params.interestRate);
                 
                 // Use the selected pricing model for the balancing option
                 let balanceWithPrice = 0;
@@ -3726,18 +2215,15 @@ const Index = () => {
                     1000
                   );
                 } else {
-                  // Use Black-Scholes (default)
-                  const d1 = (Math.log(forward/balanceWithStrike) + (r + balanceWithVol**2/2)*t) / (balanceWithVol*Math.sqrt(t));
-                  const d2 = d1 - balanceWithVol*Math.sqrt(t);
-                  
-                  const Nd1 = (1 + erf(d1/Math.sqrt(2)))/2;
-                  const Nd2 = (1 + erf(d2/Math.sqrt(2)))/2;
-                  
-                  if (balanceWithType === 'call') {
-                    balanceWithPrice = forward*Nd1 - balanceWithStrike*Math.exp(-r*t)*Nd2;
-                  } else { // put
-                    balanceWithPrice = balanceWithStrike*Math.exp(-r*t)*(1-Nd2) - forward*(1-Nd1);
-                  }
+                  balanceWithPrice = calculateBlack76Price(
+                    balanceWithType,
+                    forward,
+                    balanceWithStrike,
+                    r,
+                    0,
+                    t,
+                    balanceWithVol
+                  );
                 }
                 
                 // Find the strike that gives an equivalent premium for the current option
@@ -3763,18 +2249,15 @@ const Index = () => {
                       1000
                     );
                   } else {
-                    // Use Black-Scholes (default)
-                    const d1 = (Math.log(forward/mid) + (r + currentVol**2/2)*t) / (currentVol*Math.sqrt(t));
-                    const d2 = d1 - currentVol*Math.sqrt(t);
-                    
-                    const Nd1 = (1 + erf(d1/Math.sqrt(2)))/2;
-                    const Nd2 = (1 + erf(d2/Math.sqrt(2)))/2;
-                    
-                    if (currentType === 'call') {
-                      price = forward*Nd1 - mid*Math.exp(-r*t)*Nd2;
-                    } else { // put
-                      price = mid*Math.exp(-r*t)*(1-Nd2) - forward*(1-Nd1);
-                    }
+                    price = calculateBlack76Price(
+                      currentType,
+                      forward,
+                      mid,
+                      r,
+                      0,
+                      t,
+                      currentVol
+                    );
                   }
                   
                   // Check if we're close enough
@@ -3896,7 +2379,7 @@ const Index = () => {
           // Le prix représente la valeur théorique de l'option, indépendamment de son état knocked out
           if (option.type === 'forward') {
             // For forwards, the value is simply the difference between forward rate and strike
-            price = (forward - strike) * Math.exp(-r * t);
+            price = presentValueForwardPayoff(forward, strike, r, t);
           } else if (option.type === 'call' || option.type === 'put') {
             // TPP: IV from surface by strike & DTE; else implied or option vol
             const tppIv = useTickerPeekPro && tppSurfacePoints.length > 0
@@ -3909,7 +2392,7 @@ const Index = () => {
           const underlyingPrice = forward; // Use forward price for commodity options
           if (optionPricingModel === 'monte-carlo') {
             // Use Monte Carlo for vanilla options with cost of carry
-            const b = calculateCostOfCarry(params);
+            const b = strategyBuilderAnnualPercentToDecimal(params.interestRate);
             price = calculateVanillaOptionMonteCarlo(
               option.type,
               underlyingPrice,
@@ -3921,18 +2404,15 @@ const Index = () => {
               1000 // Number of simulations for vanilla options
             );
           } else {
-            // Black-76 (default for commodities - uses forward price)
-            const d1 = (Math.log(underlyingPrice/strike) + (r + effectiveSigma**2/2)*t) / (effectiveSigma*Math.sqrt(t));
-            const d2 = d1 - effectiveSigma*Math.sqrt(t);
-            
-            const Nd1 = (1 + erf(d1/Math.sqrt(2)))/2;
-            const Nd2 = (1 + erf(d2/Math.sqrt(2)))/2;
-            
-            if (option.type === 'call') {
-              price = underlyingPrice*Nd1 - strike*Math.exp(-r*t)*Nd2;
-            } else { // put
-              price = strike*Math.exp(-r*t)*(1-Nd2) - underlyingPrice*(1-Nd1);
-            }
+            price = calculateBlack76Price(
+              option.type,
+              underlyingPrice,
+              strike,
+              r,
+              0,
+              t,
+              effectiveSigma
+            );
           }
         } else if (option.type.includes('knockout') || option.type.includes('knockin')) {
           // For barrier options, use Monte Carlo paths or closed-form solutions based on flag
@@ -3968,40 +2448,21 @@ const Index = () => {
               secondBarrier
             );
           } else {
-            // For Monte Carlo simulation, we need to generate new paths with the correct implied volatility
-            // Generate a smaller set of paths specifically for this calculation with the correct volatility
-            const localPaths = [];
-            const numLocalSims = 300; // Smaller number for performance
             const numSteps = maturityIndex;
-            const dt = t / numSteps;
-            
-            // ✅ Utiliser le forward price comme point de départ pour les chemins Monte Carlo
-            for (let i = 0; i < numLocalSims; i++) {
-              const path = [forward]; // ✅ Start with forward price (comme Strategy Builder)
-              
-              for (let step = 0; step < numSteps; step++) {
-                const prevPrice = path[path.length - 1];
-                // Generate random normal variable
-                const randomWalk = Math.random() * 2 - 1; // Simple approximation
-                
-                // Use the effective sigma (which may be implied volatility)
-                const nextPrice = prevPrice * Math.exp(
-                  (params.domesticRate/100 - params.foreignRate/100 - 0.5 * Math.pow(effectiveSigma, 2)) * dt + 
-                  effectiveSigma * Math.sqrt(dt) * randomWalk
-                );
-                
-                path.push(nextPrice);
-              }
-              
-              localPaths.push(path);
-            }
-            
-            // Calculate price using these paths with correct volatility
+            const localPaths = generateBarrierMonteCarloPathsForPricing({
+              initialPrice: forward,
+              domesticRateDecimal: params.domesticRate / 100,
+              foreignRateDecimal: params.foreignRate / 100,
+              sigma: effectiveSigma,
+              timeToMaturity: t,
+              numSteps,
+              numSimulations: 300,
+            });
           price = calculatePricesFromPaths(
                 option.type,
                 forward,
                     strike,
-                r,
+              r,
               numSteps,
               localPaths,
             barrier,
@@ -4027,7 +2488,7 @@ const Index = () => {
                 : option.secondBarrier)
             : undefined;
           // Calculer le prix digital
-          const underlyingResult = PricingService.calculateUnderlyingPrice(
+          const underlyingResult = calculateUnderlyingPrice(
             params.spotPrice,
             r,
             params.foreignRate/100,
@@ -4069,7 +2530,7 @@ const Index = () => {
           label: `Swap Price ${swapIndex + 1}`
         })),
         ...forwards.map((forwardItem, forwardIndex) => {
-          const forwardValue = (forward - forwardItem.strike) * Math.exp(-r * t);
+          const forwardValue = presentValueForwardPayoff(forward, forwardItem.strike, r, t);
           return {
             type: 'forward',
             price: forwardValue,
@@ -4104,56 +2565,45 @@ const Index = () => {
         const isKnockedIn = opt.type.includes('knockin') && barrierActivations[optionId] && barrierActivations[optionId][i];
         
         if (isKnockedOut) {
-          // Si l'option est knocked out, son payoff est 0
           payoff = 0;
         } else if (opt.type.includes('knockin')) {
-          // Pour les options knock-in, utiliser l'état stocké
-            const isCall = opt.type.includes('call');
-            const basePayoff = isCall ? 
-            Math.max(0, realPrice - opt.strike) : 
-            Math.max(0, opt.strike - realPrice);
-          
-          // Si l'option est déjà knocked in, elle est active
+          const isCall = opt.type.includes('call');
+          const basePayoff = isCall
+            ? Math.max(0, realPrice - opt.strike)
+            : Math.max(0, opt.strike - realPrice);
           payoff = isKnockedIn ? basePayoff : 0;
         } else if (opt.type.includes('knockout') || opt.type.includes('knockin')) {
-          // Pour les options knockout, vérifier si le prix actuel franchirait la barrière
           const option = strategy.find(s => s.type === opt.type);
           if (!option) return sum;
-          
-          const barrier = option.barrierType === 'percent' ? 
-            params.spotPrice * (option.barrier / 100) : 
-            option.barrier;
-            
-          const secondBarrier = option.type.includes('double') ? 
-            (option.barrierType === 'percent' ? 
-              params.spotPrice * (option.secondBarrier / 100) : 
-              option.secondBarrier) : 
-            undefined;
-          
-          // Vérifier si le prix actuel franchirait la barrière
+
+          const barrier = option.barrierType === 'percent'
+            ? params.spotPrice * (option.barrier / 100)
+            : option.barrier;
+          const secondBarrier = option.type.includes('double')
+            ? (option.barrierType === 'percent'
+                ? params.spotPrice * (option.secondBarrier / 100)
+                : option.secondBarrier)
+            : undefined;
+
           let barrierHit = false;
-          
-              if (opt.type.includes('reverse')) {
-                if (opt.type.includes('put')) {
-              barrierHit = realPrice >= barrier; // Reverse Put: hit if above
-                } else {
-              barrierHit = realPrice <= barrier; // Reverse Call: hit if below
-                }
-              } else if (opt.type.includes('double')) {
-            barrierHit = realPrice >= barrier || (secondBarrier && realPrice <= secondBarrier);
-              } else {
-                if (opt.type.includes('put')) {
-              barrierHit = realPrice <= barrier; // Put: hit if below
-                } else {
-              barrierHit = realPrice >= barrier; // Call: hit if above
-            }
+          if (opt.type.includes('reverse')) {
+            barrierHit = opt.type.includes('put')
+              ? realPrice >= barrier
+              : realPrice <= barrier;
+          } else if (opt.type.includes('double')) {
+            const { lower: lo, upper: up } = orderedDoubleBarrierLevels(barrier, secondBarrier ?? barrier);
+            barrierHit = realPrice >= up || realPrice <= lo;
+          } else {
+            barrierHit = opt.type.includes('put')
+              ? realPrice <= barrier
+              : realPrice >= barrier;
           }
-          
+
           const isCall = opt.type.includes('call');
-          const basePayoff = isCall ? 
-            Math.max(0, realPrice - opt.strike) : 
-            Math.max(0, opt.strike - realPrice);
-          
+          const basePayoff = isCall
+            ? Math.max(0, realPrice - opt.strike)
+            : Math.max(0, opt.strike - realPrice);
+
           if (opt.type.includes('knockout')) {
             payoff = barrierHit ? 0 : basePayoff;
             }
@@ -4171,49 +2621,26 @@ const Index = () => {
             opt.type.includes('range-binary') ||
             opt.type.includes('outside-binary')
           ) {
-            // Pour les options digitales, calculer le payoff réel (rebate ou 0)
             const option = strategy.find(s => s.type === opt.type);
             if (!option) return sum;
-            
-            // Récupérer les barrières et le rebate
-            const barrier = option.barrierType === 'percent' ? 
-              params.spotPrice * (option.barrier / 100) : 
-              option.barrier;
-              
-            const secondBarrier = option.type.includes('double') ? 
-              (option.barrierType === 'percent' ? 
-                params.spotPrice * (option.secondBarrier / 100) : 
-                option.secondBarrier) : 
-              undefined;
-            
+            const barrier = option.barrierType === 'percent'
+              ? params.spotPrice * (option.barrier / 100) : option.barrier;
+            const secondBarrier = option.type.includes('double')
+              ? (option.barrierType === 'percent'
+                  ? params.spotPrice * (option.secondBarrier / 100) : option.secondBarrier)
+              : undefined;
             const rebate = option.rebate ?? 1;
-            
-            // Vérifier si la condition est atteinte en fonction du type d'option
             let conditionAtteinte = false;
-            
-            if (opt.type.includes('one-touch')) {
-              conditionAtteinte = realPrice >= barrier;
-            } else if (opt.type.includes('no-touch')) {
-              conditionAtteinte = realPrice < barrier;
-            } else if (opt.type.includes('double-touch')) {
-              const upperBarrier = Math.max(barrier, secondBarrier || 0);
-              const lowerBarrier = Math.min(barrier, secondBarrier || Infinity);
-              conditionAtteinte = (realPrice >= upperBarrier || realPrice <= lowerBarrier);
-            } else if (opt.type.includes('double-no-touch')) {
-              const upperBarrier = Math.max(barrier, secondBarrier || 0);
-              const lowerBarrier = Math.min(barrier, secondBarrier || Infinity);
-              conditionAtteinte = (realPrice < upperBarrier && realPrice > lowerBarrier);
-            } else if (opt.type.includes('range-binary')) {
-              const upperBarrier = Math.max(barrier, secondBarrier || 0);
-              const lowerBarrier = Math.min(barrier, secondBarrier || Infinity);
-              conditionAtteinte = (realPrice <= upperBarrier && realPrice >= lowerBarrier);
-            } else if (opt.type.includes('outside-binary')) {
-              const upperBarrier = Math.max(barrier, secondBarrier || 0);
-              const lowerBarrier = Math.min(barrier, secondBarrier || Infinity);
-              conditionAtteinte = (realPrice > upperBarrier || realPrice < lowerBarrier);
+            if (opt.type.includes('one-touch')) conditionAtteinte = realPrice >= barrier;
+            else if (opt.type.includes('no-touch')) conditionAtteinte = realPrice < barrier;
+            else if (opt.type.includes('double-touch') || opt.type.includes('double-no-touch') ||
+                     opt.type.includes('range-binary') || opt.type.includes('outside-binary')) {
+              const { lower: lo, upper: up } = orderedDoubleBarrierLevels(barrier, secondBarrier ?? barrier);
+              if (opt.type.includes('double-touch')) conditionAtteinte = realPrice >= up || realPrice <= lo;
+              else if (opt.type.includes('double-no-touch')) conditionAtteinte = realPrice < up && realPrice > lo;
+              else if (opt.type.includes('range-binary')) conditionAtteinte = realPrice <= up && realPrice >= lo;
+              else if (opt.type.includes('outside-binary')) conditionAtteinte = realPrice > up || realPrice < lo;
             }
-            
-            // Attribuer le rebate ou 0 en fonction de la condition
             payoff = conditionAtteinte ? ((rebate / 100) * monthlyVolume) : 0;
           }
           
@@ -4278,7 +2705,7 @@ const Index = () => {
       if (curvePoints.length >= 2) {
         months.forEach((date, idx) => {
           const monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
-          const dteFwd = Math.max(0, Math.round(timeToMaturities[idx] * 365.25));
+          const dteFwd = daysToMaturityFromYearsAct36525(timeToMaturities[idx]);
           const fwd = interpolateFuturesPrice(curvePoints, dteFwd);
           if (fwd != null) tppForwards[monthKey] = fwd;
         });
@@ -4290,7 +2717,7 @@ const Index = () => {
         months.forEach((date, i) => {
           const monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
           const t = timeToMaturities[i];
-          const dte = Math.max(0, Math.round(t * 365.25));
+          const dte = daysToMaturityFromYearsAct36525(t);
           optionsList.forEach((option, optIndex) => {
             const strike = option.strikeType === 'percent' ? params.spotPrice * (option.strike / 100) : option.strike;
             const optionKey = `${option.type}-${optIndex}`;
@@ -4306,7 +2733,7 @@ const Index = () => {
         if (Object.keys(tppIvs).length > 0) setImpliedVolatilities(prev => ({ ...prev, ...tppIvs }));
       }
     }
-
+    
     // Update swap prices automatically when results are calculated
     const hasSwaps = strategy.some(component => component.type === 'swap');
     if (hasSwaps && detailedResults.length > 0) {
@@ -4381,7 +2808,7 @@ const Index = () => {
         months.push(new Date(date));
       
       // Calcul du forward price standard basé sur le taux d'intérêt
-      const baseForward = calculateCommodityForwardPrice(params.spotPrice, getRiskFreeRate(params), 0, 0, timeInYears);
+      const baseForward = calculateCommodityForwardPrice(params.spotPrice, strategyBuilderAnnualPercentToDecimal(params.interestRate), 0, 0, timeInYears);
       
       // ✅ LOGIQUE CORRIGÉE : Distinguer les scénarios "Real Prices" des autres
     if (scenario.realBasis !== undefined) {
@@ -5210,14 +3637,6 @@ const Index = () => {
     calculateResults();
   };
 
-  // Fonction pour calculer le prix du swap (moyenne des forwards actualisés)
-  const calculateSwapPrice = (forwards: number[], timeToMaturities: number[], r: number) => {
-    const weightedSum = validateDataForReduce(forwards).reduce((sum, forward, i) => {
-      return sum + forward * Math.exp(-r * timeToMaturities[i]);
-    }, 0);
-    return weightedSum / forwards.length;
-  };
-
   // Fonction pour ajouter un swap
   const addSwap = () => {
     // Calculer le prix du swap si on a des résultats
@@ -5410,7 +3829,7 @@ const Index = () => {
     const validData = data.filter(point => 
       point && 
       point.date && 
-      PricingService.isValidDateString(point.date) && 
+      isValidDateString(point.date) && 
       typeof point.price === 'number' && 
       !isNaN(point.price)
     );
@@ -5422,7 +3841,7 @@ const Index = () => {
     }
     
     // Get data range information
-    const dateRange = PricingService.getDataDateRange(validData.map(p => p.date));
+    const dateRange = getDataDateRange(validData.map(p => p.date));
     if (!dateRange) {
       console.warn('[BACKTEST] Could not determine data range');
       setMonthlyStats([]);
@@ -5448,18 +3867,18 @@ const Index = () => {
     // Calculate statistics for each month using intelligent calendar system
     const stats = Object.entries(monthlyData).map(([month, { prices, dates }]) => {
       // Determine which price to use based on settings
-      const exerciseType = PricingService.getBacktestExerciseType();
+      const exerciseType = getBacktestExerciseType();
       let avgPrice: number;
       let calculationMethod = '';
       
       if (exerciseType === 'third-friday') {
         // Use intelligent calendar system to find the 3rd Friday
         const [year, monthNum] = month.split('-').map(Number);
-        const thirdFriday = PricingService.getThirdFridayOfMonth(year, monthNum);
+        const thirdFriday = getThirdFridayOfMonth(year, monthNum);
         
         if (thirdFriday) {
           // Use the smart date finder to get the closest date in data
-          const closestResult = PricingService.findClosestDateInData(thirdFriday, dates);
+          const closestResult = findClosestDateInData(thirdFriday, dates);
           
           if (closestResult) {
             avgPrice = prices[closestResult.index];
@@ -5644,7 +4063,11 @@ const Index = () => {
           const strategyPrice = results[Math.min(i, results.length-1)].strategyPrice;
           
           // Calculate the payoff for this mid price using the dedicated function
-          const totalPayoff = calculateStrategyPayoffAtPrice(strategyConfig.components, midPrice);
+          const totalPayoff = calculateStrategyPayoffAtPrice(
+            strategyConfig.components,
+            midPrice,
+            params.spotPrice
+          );
 
           // Calculate the costs for this month
           const unhedgedCost = -(monthlyVolume * midPrice);
@@ -5744,102 +4167,28 @@ const Index = () => {
       if (comp.type === 'swap') {
         totalPrice += 0; // Swap has no premium
       } else {
-        const optionPrice = calculateOptionPrice(
-          comp.type, 
-          params.spotPrice, 
-          strike, 
-          getRiskFreeRate(params), 
-          1, // 1 year as approximation
-          comp.volatility/100
-        );
+        const optionPrice = calculateStrategyBuilderOptionPrice({
+          type: comp.type,
+          S: params.spotPrice,
+          K: strike,
+          rDiscountDecimal: strategyBuilderAnnualPercentToDecimal(params.interestRate),
+          t: 1,
+          sigma: comp.volatility / 100,
+          useImpliedVol,
+          getImpliedVol: useImpliedVol ? getImpliedVolatility : undefined,
+          spotPrice: params.spotPrice,
+          domesticRatePercent: params.domesticRate,
+          foreignRatePercent: params.foreignRate,
+          optionPricingModel,
+          barrierPricingModel,
+          barrierOptionSimulations,
+          strategyLegs: strategy,
+        });
         totalPrice += optionPrice * comp.quantity;
       }
     });
     
     return totalPrice;
-  };
-
-  // Add this function to calculate the payoff at a given price
-  const calculateStrategyPayoffAtPrice = (components: StrategyComponent[], price: number) => {
-    let totalPayoff = 0;
-    
-    components.forEach(comp => {
-      const strike = comp.strikeType === 'percent' 
-        ? params.spotPrice * (comp.strike / 100) 
-        : comp.strike;
-      
-      let payoff = 0;
-      
-      if (comp.type === 'swap') {
-        // For swaps, the payoff is the difference between the price and the strike
-        payoff = (price - strike);
-      } else if (comp.type.includes('knockout') || comp.type.includes('knockin')) {
-        // Handle barrier options
-        const barrier = comp.barrierType === 'percent' 
-          ? params.spotPrice * (comp.barrier / 100) 
-          : comp.barrier;
-        
-        const secondBarrier = comp.type.includes('double') 
-          ? (comp.barrierType === 'percent' 
-            ? params.spotPrice * (comp.secondBarrier / 100) 
-            : comp.secondBarrier) 
-          : undefined;
-          
-        // Determine if the barrier is breached
-        let isBarrierBroken = false;
-        
-        if (comp.type.includes('double')) {
-          // Double barrier options
-          const upperBarrier = Math.max(barrier, secondBarrier || 0);
-          const lowerBarrier = Math.min(barrier, secondBarrier || Infinity);
-          isBarrierBroken = price >= upperBarrier || price <= lowerBarrier;
-        } else if (comp.type.includes('reverse')) {
-          // Reverse barrier options
-          if (comp.type.includes('put')) {
-            // Put Reverse: barrier breached if price is above
-            isBarrierBroken = price >= barrier;
-          } else {
-            // Call Reverse: barrier breached if price is below
-            isBarrierBroken = price <= barrier;
-          }
-        } else {
-          // Standard barrier options
-          if (comp.type.includes('put')) {
-            // Put: barrier breached if price is below
-            isBarrierBroken = price <= barrier;
-          } else {
-            // Call: barrier breached if price is above
-            isBarrierBroken = price >= barrier;
-          }
-        }
-        
-        // Calculate the base payoff
-        const isCall = comp.type.includes('call');
-        const basePayoff = isCall 
-          ? Math.max(0, price - strike) 
-          : Math.max(0, strike - price);
-        
-        // Determine the final payoff according to the option type
-        if (comp.type.includes('knockout')) {
-          // For knock-out options, the payoff is zero if the barrier is breached
-          payoff = isBarrierBroken ? 0 : basePayoff;
-        } else { // knockin
-          // For knock-in options, the payoff is non-zero only if the barrier is breached
-          payoff = isBarrierBroken ? basePayoff : 0;
-        }
-      } else if (comp.type === 'call') {
-        // Standard call option
-        payoff = Math.max(0, price - strike);
-      } else { // put
-        // Standard put option
-        payoff = Math.max(0, strike - price);
-      }
-      
-      // Add the payoff to the total taking into account the quantity
-      totalPayoff += payoff * (comp.quantity / 100);
-    });
-    
-    return totalPayoff;
   };
 
   // Add this function to remove a strategy
@@ -6342,17 +4691,17 @@ const Index = () => {
     } else {
       // Use the same maturity convention as calculateResults (last day or third Friday)
       const maturityConvention = getMaturityConvention();
-      let currentDate = new Date(startDate);
+    let currentDate = new Date(startDate);
 
-      const lastDayOfStartMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-      const remainingDaysInMonth = lastDayOfStartMonth.getDate() - currentDate.getDate() + 1;
+    const lastDayOfStartMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+    const remainingDaysInMonth = lastDayOfStartMonth.getDate() - currentDate.getDate() + 1;
 
-      if (remainingDaysInMonth > 0) {
+    if (remainingDaysInMonth > 0) {
         months.push(getMaturityDateForMonth(currentDate.getFullYear(), currentDate.getMonth(), maturityConvention));
-      }
+    }
 
-      for (let i = 0; i < params.monthsToHedge - (remainingDaysInMonth > 0 ? 1 : 0); i++) {
-        currentDate.setMonth(currentDate.getMonth() + 1);
+    for (let i = 0; i < params.monthsToHedge - (remainingDaysInMonth > 0 ? 1 : 0); i++) {
+      currentDate.setMonth(currentDate.getMonth() + 1);
         months.push(getMaturityDateForMonth(currentDate.getFullYear(), currentDate.getMonth(), maturityConvention));
       }
     }
@@ -6365,7 +4714,15 @@ const Index = () => {
     
     // Générer des chemins de prix seulement si la simulation est activée
     if (realPriceParams.useSimulation) {
-      const pathsData = generatePricePathsForPeriod(months, startDate, realPriceParams.numSimulations);
+      const pathsData = generateStrategyBuilderPricePaths({
+        monthMaturityStrs: months.map((d) => formatDateLocal(d)),
+        valuationDateStr: formatDateLocal(startDate),
+        spotPrice: params.spotPrice,
+        domesticRatePercent: params.domesticRate,
+        foreignRatePercent: params.foreignRate,
+        sigmaDecimal: realPriceParams.volatility,
+        numSimulations: realPriceParams.numSimulations,
+      });
       paths = pathsData.paths;
       monthlyIndices = pathsData.monthlyIndices;
       
@@ -6405,7 +4762,15 @@ const Index = () => {
       
       // Générer des chemins simples pour les options barrière si nécessaire
       // Même si useSimulation est false, nous voulons générer des chemins pour les options barrière
-      const pathsData = generatePricePathsForPeriod(months, startDate, 100); // Utiliser seulement 100 simulations pour les options barrière
+      const pathsData = generateStrategyBuilderPricePaths({
+        monthMaturityStrs: months.map((d) => formatDateLocal(d)),
+        valuationDateStr: formatDateLocal(startDate),
+        spotPrice: params.spotPrice,
+        domesticRatePercent: params.domesticRate,
+        foreignRatePercent: params.foreignRate,
+        sigmaDecimal: realPriceParams.volatility,
+        numSimulations: 100,
+      });
       paths = pathsData.paths;
       monthlyIndices = pathsData.monthlyIndices;
     }
@@ -6419,7 +4784,15 @@ const Index = () => {
 
     if (barrierOptions.length > 0) {
       // Génération de chemins spécifiques pour les options à barrière
-      const barrierPathsData = generatePricePathsForPeriod(months, startDate, barrierOptionSimulations);
+      const barrierPathsData = generateStrategyBuilderPricePaths({
+        monthMaturityStrs: months.map((d) => formatDateLocal(d)),
+        valuationDateStr: formatDateLocal(startDate),
+        spotPrice: params.spotPrice,
+        domesticRatePercent: params.domesticRate,
+        foreignRatePercent: params.foreignRate,
+        sigmaDecimal: realPriceParams.volatility,
+        numSimulations: barrierOptionSimulations,
+      });
       const barrierPaths = barrierPathsData.paths;
       const barrierMonthlyIndices = barrierPathsData.monthlyIndices;
       
@@ -6475,7 +4848,7 @@ const Index = () => {
             barrierOption.type,
             params.spotPrice,
             strike,
-            getRiskFreeRate(params),
+            strategyBuilderAnnualPercentToDecimal(params.interestRate),
             maturityIndex,
             [path],
             barrier,
@@ -6605,346 +4978,6 @@ const Index = () => {
     }
   };
 
-  // Fonction pour calculer le prix des options à barrière avec formules fermées
-  const calculateBarrierOptionClosedForm = (
-    optionType: string,
-    S: number,      // Current price
-    K: number,      // Strike price
-    r: number,      // Risk-free rate
-    t: number,      // Time to maturity in years
-    sigma: number,  // Volatility
-    barrier: number, // Barrier level
-    secondBarrier?: number // Second barrier for double barrier options
-  ) => {
-    // Paramètres fondamentaux selon les notations du code VBA
-    const b = r;  // Cost of carry (peut être ajusté pour dividendes)
-    const v = sigma; // Pour garder la même notation que le code VBA
-    const T = t;    // Pour garder la même notation que le code VBA
-    
-    // Fonction pour calculer N(x) - cumulative normal distribution
-    const CND = (x) => (1 + erf(x / Math.sqrt(2))) / 2;
-    
-    // PARTIE 1: Options à barrière simple
-    if (!optionType.includes('double')) {
-      // Calcul des paramètres de base
-      const mu = (b - v**2/2) / (v**2);
-      const lambda = Math.sqrt(mu**2 + 2*r/(v**2));
-      
-      // Paramètres pour les options à barrière simple selon le code VBA
-      const X = K; // Le strike price
-      const H = barrier; // La barrière
-      
-      const X1 = Math.log(S/X) / (v * Math.sqrt(T)) + (1 + mu) * v * Math.sqrt(T);
-      const X2 = Math.log(S/H) / (v * Math.sqrt(T)) + (1 + mu) * v * Math.sqrt(T);
-      const y1 = Math.log(H**2/(S*X)) / (v * Math.sqrt(T)) + (1 + mu) * v * Math.sqrt(T);
-      const y2 = Math.log(H/S) / (v * Math.sqrt(T)) + (1 + mu) * v * Math.sqrt(T);
-      const Z = Math.log(H/S) / (v * Math.sqrt(T)) + lambda * v * Math.sqrt(T);
-      
-      // Variables binaires eta et phi selon le type d'option
-      let eta = 0, phi = 0;
-      let TypeFlag = "";
-      
-      // Déterminer le TypeFlag basé sur le type d'option
-      if (optionType === 'call-knockin' && !optionType.includes('reverse') && H < S) {
-        TypeFlag = "cdi"; // Call down-and-in
-        eta = 1;
-        phi = 1;
-      } else if (optionType === 'call-knockin' && !optionType.includes('reverse') && H > S) {
-        TypeFlag = "cui"; // Call up-and-in
-        eta = -1;
-        phi = 1;
-      } else if (optionType === 'put-knockin' && !optionType.includes('reverse') && H < S) {
-        TypeFlag = "pdi"; // Put down-and-in
-        eta = 1;
-        phi = -1;
-      } else if (optionType === 'put-knockin' && !optionType.includes('reverse') && H > S) {
-        TypeFlag = "pui"; // Put up-and-in
-        eta = -1;
-        phi = -1;
-      } else if (optionType === 'call-knockout' && !optionType.includes('reverse') && H < S) {
-        TypeFlag = "cdo"; // Call down-and-out
-        eta = 1;
-        phi = 1;
-      } else if (optionType === 'call-knockout' && !optionType.includes('reverse') && H > S) {
-        TypeFlag = "cuo"; // Call up-and-out
-        eta = -1;
-        phi = 1;
-      } else if (optionType === 'put-knockout' && !optionType.includes('reverse') && H < S) {
-        TypeFlag = "pdo"; // Put down-and-out
-        eta = 1;
-        phi = -1;
-      } else if (optionType === 'put-knockout' && !optionType.includes('reverse') && H > S) {
-        TypeFlag = "puo"; // Put up-and-out
-        eta = -1;
-        phi = -1;
-      } else if (optionType === 'call-reverse-knockin') {
-        // Équivalent à put-up-and-in
-        TypeFlag = "pui";
-        eta = -1;
-        phi = -1;
-      } else if (optionType === 'call-reverse-knockout') {
-        // Équivalent à put-up-and-out
-        TypeFlag = "puo";
-        eta = -1;
-        phi = -1;
-      } else if (optionType === 'put-reverse-knockin') {
-        // Équivalent à call-up-and-in
-        TypeFlag = "cui";
-        eta = -1;
-        phi = 1;
-      } else if (optionType === 'put-reverse-knockout') {
-        // Équivalent à call-up-and-out
-        TypeFlag = "cuo";
-        eta = -1;
-        phi = 1;
-      }
-      
-      // Si le type d'option n'est pas reconnu, utiliser Monte Carlo
-      if (TypeFlag === "") {
-        return calculateBarrierOptionPrice(optionType, S, K, r, t, sigma, barrier, secondBarrier, barrierOptionSimulations);
-      }
-      
-      // Calculer les termes f1-f6 selon le code VBA
-      const f1 = phi * S * Math.exp((b-r)*T) * CND(phi*X1) - 
-                phi * X * Math.exp(-r*T) * CND(phi*X1 - phi*v*Math.sqrt(T));
-                
-      const f2 = phi * S * Math.exp((b-r)*T) * CND(phi*X2) - 
-                phi * X * Math.exp(-r*T) * CND(phi*X2 - phi*v*Math.sqrt(T));
-                
-      const f3 = phi * S * Math.exp((b-r)*T) * (H/S)**(2*(mu+1)) * CND(eta*y1) - 
-                phi * X * Math.exp(-r*T) * (H/S)**(2*mu) * CND(eta*y1 - eta*v*Math.sqrt(T));
-                
-      const f4 = phi * S * Math.exp((b-r)*T) * (H/S)**(2*(mu+1)) * CND(eta*y2) - 
-                phi * X * Math.exp(-r*T) * (H/S)**(2*mu) * CND(eta*y2 - eta*v*Math.sqrt(T));
-      
-      // K représente le cash rebate, généralement 0 pour les options standards
-      const cashRebate = 0;
-      
-      const f5 = cashRebate * Math.exp(-r*T) * (CND(eta*X2 - eta*v*Math.sqrt(T)) - 
-              (H/S)**(2*mu) * CND(eta*y2 - eta*v*Math.sqrt(T)));
-              
-      const f6 = cashRebate * ((H/S)**(mu+lambda) * CND(eta*Z) + 
-              (H/S)**(mu-lambda) * CND(eta*Z - 2*eta*lambda*v*Math.sqrt(T)));
-      
-      // Calculer le prix selon le TypeFlag et la relation entre X et H
-      let optionPrice = 0;
-      
-      if (X > H) {
-        switch (TypeFlag) {
-          case "cdi": optionPrice = f3 + f5; break;
-          case "cui": optionPrice = f1 + f5; break;
-          case "pdi": optionPrice = f2 - f3 + f4 + f5; break;
-          case "pui": optionPrice = f1 - f2 + f4 + f5; break;
-          case "cdo": optionPrice = f1 - f3 + f6; break;
-          case "cuo": optionPrice = f6; break;
-          case "pdo": optionPrice = f1 - f2 + f3 - f4 + f6; break;
-          case "puo": optionPrice = f2 - f4 + f6; break;
-        }
-      } else if (X < H) {
-        switch (TypeFlag) {
-          case "cdi": optionPrice = f1 - f2 + f4 + f5; break;
-          case "cui": optionPrice = f2 - f3 + f4 + f5; break;
-          case "pdi": optionPrice = f1 + f5; break;
-          case "pui": optionPrice = f3 + f5; break;
-          case "cdo": optionPrice = f2 - f4 + f6; break;
-          case "cuo": optionPrice = f1 - f2 + f3 - f4 + f6; break;
-          case "pdo": optionPrice = f6; break;
-          case "puo": optionPrice = f1 - f3 + f6; break;
-        }
-      }
-      
-      // S'assurer que le prix de l'option n'est jamais négatif
-      return Math.max(0, optionPrice);
-    }
-    // PARTIE 2: Options à double barrière
-    else if (secondBarrier) {
-      // Variables pour les options à double barrière selon le code VBA
-      const X = K; // Strike price
-      const L = Math.min(barrier, secondBarrier); // Barrière inférieure
-      const U = Math.max(barrier, secondBarrier); // Barrière supérieure
-      
-      // Paramètres pour les formules de double barrière
-      const delta1 = 0; // Taux de croissance des barrières (généralement 0)
-      const delta2 = 0; // Taux de dividende (dans notre cas, 0)
-      
-      // Déterminer le TypeFlag en fonction du type d'option
-      let TypeFlag = "";
-      if (optionType.includes('call-double-knockout')) {
-        TypeFlag = "co"; // Call double-knockout (out)
-      } else if (optionType.includes('call-double-knockin')) {
-        TypeFlag = "ci"; // Call double-knockin (in)
-      } else if (optionType.includes('put-double-knockout')) {
-        TypeFlag = "po"; // Put double-knockout (out)
-      } else if (optionType.includes('put-double-knockin')) {
-        TypeFlag = "pi"; // Put double-knockin (in)
-      }
-      
-      // Si le type n'est pas reconnu, utiliser Monte Carlo
-      if (TypeFlag === "") {
-        return calculateBarrierOptionPrice(optionType, S, K, r, t, sigma, barrier, secondBarrier, barrierOptionSimulations);
-      }
-      
-      // Calculer les variables F et E selon le code VBA
-      const F = U * Math.exp(delta1 * T);
-      const E = L * Math.exp(delta1 * T);
-      
-      let Sum1 = 0;
-      let Sum2 = 0;
-      
-      // Pour les options call double-barrière (ci/co)
-      if (TypeFlag === "co" || TypeFlag === "ci") {
-        // Somme sur un nombre fini de termes (-5 à 5 dans le code VBA)
-        for (let n = -5; n <= 5; n++) {
-          const d1 = (Math.log(S * U ** (2 * n) / (X * L ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-          const d2 = (Math.log(S * U ** (2 * n) / (F * L ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-          const d3 = (Math.log(L ** (2 * n + 2) / (X * S * U ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-          const d4 = (Math.log(L ** (2 * n + 2) / (F * S * U ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-          
-          const mu1 = 2 * (b - delta2 - n * (delta1 - delta2)) / v ** 2 + 1;
-          const mu2 = 2 * n * (delta1 - delta2) / v ** 2;
-          const mu3 = 2 * (b - delta2 + n * (delta1 - delta2)) / v ** 2 + 1;
-          
-          Sum1 += (U ** n / L ** n) ** mu1 * (L / S) ** mu2 * (CND(d1) - CND(d2)) - 
-                (L ** (n + 1) / (U ** n * S)) ** mu3 * (CND(d3) - CND(d4));
-                
-          Sum2 += (U ** n / L ** n) ** (mu1 - 2) * (L / S) ** mu2 * (CND(d1 - v * Math.sqrt(T)) - CND(d2 - v * Math.sqrt(T))) - 
-                (L ** (n + 1) / (U ** n * S)) ** (mu3 - 2) * (CND(d3 - v * Math.sqrt(T)) - CND(d4 - v * Math.sqrt(T)));
-        }
-      }
-      // Pour les options put double-barrière (pi/po)
-      else if (TypeFlag === "po" || TypeFlag === "pi") {
-        // Somme sur un nombre fini de termes (-5 à 5 dans le code VBA)
-        for (let n = -5; n <= 5; n++) {
-          const d1 = (Math.log(S * U ** (2 * n) / (E * L ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-          const d2 = (Math.log(S * U ** (2 * n) / (X * L ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-          const d3 = (Math.log(L ** (2 * n + 2) / (E * S * U ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-          const d4 = (Math.log(L ** (2 * n + 2) / (X * S * U ** (2 * n))) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-          
-          const mu1 = 2 * (b - delta2 - n * (delta1 - delta2)) / v ** 2 + 1;
-          const mu2 = 2 * n * (delta1 - delta2) / v ** 2;
-          const mu3 = 2 * (b - delta2 + n * (delta1 - delta2)) / v ** 2 + 1;
-          
-          Sum1 += (U ** n / L ** n) ** mu1 * (L / S) ** mu2 * (CND(d1) - CND(d2)) - 
-                (L ** (n + 1) / (U ** n * S)) ** mu3 * (CND(d3) - CND(d4));
-                
-          Sum2 += (U ** n / L ** n) ** (mu1 - 2) * (L / S) ** mu2 * (CND(d1 - v * Math.sqrt(T)) - CND(d2 - v * Math.sqrt(T))) - 
-                (L ** (n + 1) / (U ** n * S)) ** (mu3 - 2) * (CND(d3 - v * Math.sqrt(T)) - CND(d4 - v * Math.sqrt(T)));
-        }
-      }
-      
-      // Calculer OutValue selon le type d'option
-      let OutValue = 0;
-      if (TypeFlag === "co" || TypeFlag === "ci") {
-        OutValue = S * Math.exp((b - r) * T) * Sum1 - X * Math.exp(-r * T) * Sum2;
-      } else if (TypeFlag === "po" || TypeFlag === "pi") {
-        OutValue = X * Math.exp(-r * T) * Sum2 - S * Math.exp((b - r) * T) * Sum1;
-      }
-      
-      // Fonction pour calculer le prix Black-Scholes standard
-      const GBlackScholes = (type, S, X, T, r, b, v) => {
-        const d1 = (Math.log(S / X) + (b + v ** 2 / 2) * T) / (v * Math.sqrt(T));
-        const d2 = d1 - v * Math.sqrt(T);
-        
-        if (type === "c") {
-          return S * Math.exp((b - r) * T) * CND(d1) - X * Math.exp(-r * T) * CND(d2);
-        } else { // type === "p"
-          return X * Math.exp(-r * T) * CND(-d2) - S * Math.exp((b - r) * T) * CND(-d1);
-        }
-      };
-      
-      // Calculer le prix final selon le TypeFlag (appliquer la relation de parité pour les knockin)
-      let optionPrice = 0;
-      if (TypeFlag === "co") {
-        optionPrice = OutValue;
-      } else if (TypeFlag === "po") {
-        optionPrice = OutValue;
-      } else if (TypeFlag === "ci") {
-        // Pour les options knockin, utiliser la relation: knockin + knockout = vanille
-        optionPrice = GBlackScholes("c", S, X, T, r, b, v) - OutValue;
-      } else if (TypeFlag === "pi") {
-        // Pour les options knockin, utiliser la relation: knockin + knockout = vanille
-        optionPrice = GBlackScholes("p", S, X, T, r, b, v) - OutValue;
-      }
-      
-      // S'assurer que le prix de l'option n'est jamais négatif
-      return Math.max(0, optionPrice);
-    }
-    
-    // Si nous arrivons ici, c'est que le type d'option n'est pas supporté
-    return calculateBarrierOptionPrice(optionType, S, K, r, t, sigma, barrier, secondBarrier, barrierOptionSimulations);
-  };
-
-  const [barrierValue, setBarrierValue] = useState<number | null>(null);
-  const [secondBarrierValue, setSecondBarrierValue] = useState<number | null>(null);
-
-  // Fonction pour calculer la volatilité implicite à partir d'un prix d'option observé
-  const calculateImpliedVolatility = (
-    optionType: string,
-    S: number,      // Prix actuel du sous-jacent
-    K: number,      // Prix d'exercice
-    r: number,      // Taux sans risque
-    t: number,      // Temps jusqu'à maturité en années
-    observedPrice: number,  // Prix de l'option observé sur le marché
-    epsilon: number = 0.0001, // Précision souhaitée
-    maxIterations: number = 100 // Nombre maximum d'itérations
-  ): number => {
-    // Pour les options à barrière ou complexes, cette fonction est plus difficile à implémenter
-    // Dans ce cas, nous nous limitons aux calls et puts vanille
-    if (optionType !== 'call' && optionType !== 'put') {
-      return 0; // Retourner une valeur par défaut pour les options non supportées
-    }
-
-    // Méthode de Newton-Raphson pour trouver la volatilité implicite
-    let sigma = 0.20; // Valeur initiale
-    let vega = 0;
-    let price = 0;
-    let diff = 0;
-    let iteration = 0;
-
-    while (iteration < maxIterations) {
-      // Calcul du prix avec la volatilité courante
-      const d1 = (Math.log(S/K) + (r + sigma*sigma/2)*t) / (sigma*Math.sqrt(t));
-      const d2 = d1 - sigma*Math.sqrt(t);
-      
-      const Nd1 = (1 + erf(d1/Math.sqrt(2)))/2;
-      const Nd2 = (1 + erf(d2/Math.sqrt(2)))/2;
-      
-      if (optionType === 'call') {
-        price = S*Nd1 - K*Math.exp(-r*t)*Nd2;
-      } else { // put
-        price = K*Math.exp(-r*t)*(1-Nd2) - S*(1-Nd1);
-      }
-      
-      // Différence entre le prix calculé et le prix observé
-      diff = price - observedPrice;
-      
-      // Vérifier si la précision souhaitée est atteinte
-      if (Math.abs(diff) < epsilon) {
-        break;
-      }
-      
-      // Calcul de la vega (dérivée du prix par rapport à la volatilité)
-      vega = S * Math.sqrt(t) * (1/Math.sqrt(2*Math.PI)) * Math.exp(-d1*d1/2);
-      
-      // Mise à jour de sigma selon la méthode de Newton-Raphson
-      sigma = sigma - diff / vega;
-      
-      // Empêcher sigma de devenir négatif ou trop petit
-      if (sigma <= 0.001) {
-        sigma = 0.001;
-      }
-      
-      // Empêcher sigma de devenir trop grand
-      if (sigma > 1) {
-        sigma = 1;
-      }
-      
-      iteration++;
-    }
-    
-    // Retourner la volatilité implicite en pourcentage
-    return sigma * 100;
-  };
 
   // Gestionnaire d'événements pour mettre à jour le prix personnalisé et calculer l'IV correspondante
   const handleCustomPriceChange = (monthKey: string, optionIndex: string, newPrice: number) => {
@@ -6978,20 +5011,22 @@ const Index = () => {
           // Pour les options standards (call/put)
           if (option.type === 'call' || option.type === 'put') {
           // Calculer la volatilité implicite à partir du prix personnalisé
-          const underlyingResult = PricingService.calculateUnderlyingPrice(
+          const underlyingResult = calculateUnderlyingPrice(
             params.spotPrice,
-            getRiskFreeRate(params),
+            strategyBuilderAnnualPercentToDecimal(params.interestRate),
             params.foreignRate/100,
             monthResult.timeToMaturity
           );
-          const impliedVol = calculateImpliedVolatility(
+          const impliedVol =
+            solveImpliedVolatilityDecimal(
             option.type,
-            underlyingResult.price,  // Utiliser le prix sous-jacent configuré
-            option.strike,        // Prix d'exercice
-            params.domesticRate / 100, // Taux domestique sans risque (conversion en décimal)
-            monthResult.timeToMaturity, // Temps jusqu'à maturité
-            newPrice              // Prix observé de l'option
-          );
+              underlyingResult.price,
+              option.strike,
+              params.domesticRate / 100,
+              params.foreignRate / 100,
+              monthResult.timeToMaturity,
+              newPrice
+            ) * 100;
             // Mettre à jour la volatilité implicite pour cette option spécifique
             setImpliedVolatilities(prev => {
               const updated = { ...prev };
@@ -7016,20 +5051,28 @@ const Index = () => {
                 const steps = 50;
                 for (let i = 0; i <= steps; i++) {
                   const testSigma = 0.01 + (i / steps) * 0.99; // Test de volatilité entre 1% et 100%
-                  const underlyingResult = PricingService.calculateUnderlyingPrice(
+                  const underlyingResult = calculateUnderlyingPrice(
                     params.spotPrice,
-                    getRiskFreeRate(params),
+                    strategyBuilderAnnualPercentToDecimal(params.interestRate),
                     params.foreignRate/100,
                     monthResult.timeToMaturity
                   );
-                  const testPrice = calculateOptionPrice(
-                    option.type,
-                    underlyingResult.price,
-                    option.strike,
-                    getRiskFreeRate(params),
-                    monthResult.timeToMaturity,
-                    testSigma
-                  );
+                  const testPrice = calculateStrategyBuilderOptionPrice({
+                    type: option.type,
+                    S: underlyingResult.price,
+                    K: option.strike,
+                    rDiscountDecimal: strategyBuilderAnnualPercentToDecimal(params.interestRate),
+                    t: monthResult.timeToMaturity,
+                    sigma: testSigma,
+                    useImpliedVol: false,
+                    spotPrice: params.spotPrice,
+                    domesticRatePercent: params.domesticRate,
+                    foreignRatePercent: params.foreignRate,
+                    optionPricingModel,
+                    barrierPricingModel,
+                    barrierOptionSimulations,
+                    strategyLegs: strategy,
+                  });
                   const diff = Math.abs(testPrice - newPrice);
                   if (diff < bestDiff) {
                     bestDiff = diff;
@@ -7056,23 +5099,6 @@ const Index = () => {
       }
     }
   };
-
-  // Export des fonctions de pricing pour centralisation
-// ... toutes les fonctions de pricing ici ...
-
-const pricingFunctions = {
-  calculateGarmanKohlhagenPrice,
-  calculateVanillaOptionMonteCarlo,
-  calculateBarrierOptionPrice,
-  calculateDigitalOptionPrice,
-  calculateBarrierOptionClosedForm,
-  calculateFXForwardPrice,
-  calculateOptionPrice,
-  erf,
-  CND: (x: number) => (1 + erf(x / Math.sqrt(2))) / 2
-};
-
-// PricingService now directly imports functions from this module - no initialization needed
 
   // Fonction pour initialiser les volatilités implicites à partir des prix actuels
   const initializeImpliedVolatilities = () => {
@@ -7103,20 +5129,22 @@ const pricingFunctions = {
         
         // Pour les options standard (call/put), calculer une vraie IV
         if (option.type === 'call' || option.type === 'put') {
-          const underlyingResult = PricingService.calculateUnderlyingPrice(
+          const underlyingResult = calculateUnderlyingPrice(
             params.spotPrice,
-            getRiskFreeRate(params),
+            strategyBuilderAnnualPercentToDecimal(params.interestRate),
             params.foreignRate/100,
             monthResult.timeToMaturity
           );
-          const calculatedIV = calculateImpliedVolatility(
+          const calculatedIV =
+            solveImpliedVolatilityDecimal(
             option.type,
             underlyingResult.price,
             option.strike,
             params.domesticRate / 100,
+              params.foreignRate / 100,
             monthResult.timeToMaturity,
             option.price
-          );
+            ) * 100;
           
           if (calculatedIV > 0) {
             impliedVol = calculatedIV;
@@ -7349,12 +5377,12 @@ const pricingFunctions = {
                       onCheckedChange={(checked) => {
                         setUseTickerPeekPro(checked);
                         if (checked) setUseRealData(false);
-                        try {
-                          const savedState = localStorage.getItem('calculatorState');
-                          const state = savedState ? JSON.parse(savedState) : {};
+                      try {
+                        const savedState = localStorage.getItem('calculatorState');
+                        const state = savedState ? JSON.parse(savedState) : {};
                           state.useTickerPeekPro = checked;
                           state.useRealData = checked ? false : state.useRealData;
-                          localStorage.setItem('calculatorState', JSON.stringify(state));
+                        localStorage.setItem('calculatorState', JSON.stringify(state));
                         } catch (error) { console.warn('Error saving useTickerPeekPro:', error); }
                       }}
                     />
@@ -7442,9 +5470,9 @@ const pricingFunctions = {
                         const filteredPairs = getFilteredDefaultCommodities();
                         const allPairs = [...filteredPairs, ...customCurrencyPairs];
                         const selectedPair = allPairs.find(pair => pair.symbol === value);
-                        if (selectedPair) {
+                      if (selectedPair) {
                           setParams({ ...params, currencyPair: selectedPair, spotPrice: selectedPair.defaultSpotRate });
-                          setInitialSpotPrice(selectedPair.defaultSpotRate);
+                        setInitialSpotPrice(selectedPair.defaultSpotRate);
                         }
                       }
                     }}
@@ -9416,7 +7444,7 @@ const pricingFunctions = {
                                 {(row as { interestRate?: number }).interestRate != null
                                   ? `${(row as { interestRate: number }).interestRate.toFixed(3)}%`
                                   : params.interestRate.toFixed(3) + '%'}
-                          </td>
+                        </td>
                           {/* Ajouter des cellules pour les strikes dynamiques si présents */}
                           {strategy.some(opt => opt.dynamicStrike) && 
                             strategy.map((opt, idx) => {
@@ -9605,8 +7633,8 @@ const pricingFunctions = {
                   
                   const currentSpot = params.spotPrice;
                   const spotRange = Array.from({length: 101}, (_, i) => currentSpot * (0.7 + i * 0.006)); // -30% à +30%
-                  const r = getRiskFreeRate(params);
-                  const b = calculateCostOfCarry(params);
+                  const r = strategyBuilderAnnualPercentToDecimal(params.interestRate);
+                  const b = strategyBuilderAnnualPercentToDecimal(params.interestRate);
                   // Valeurs par défaut pour les modèles de pricing
                   const optionPricingModel = 'black-scholes' as 'black-scholes' | 'monte-carlo';
                   const barrierPricingModel = 'closed-form' as 'closed-form' | 'monte-carlo';
@@ -9650,17 +7678,17 @@ const pricingFunctions = {
                         let price = 0;
                         
                         if (option.type === 'forward') {
-                          const forward = spot * Math.exp(b * t);
+                          const forward = calculateCommodityForwardPrice(spot, b, t);
                           price = forward - strike;
                           greeks = { delta: 1, gamma: 0, theta: 0, vega: 0, rho: 0 };
                         } else if (option.type === 'swap') {
-                          const forward = spot * Math.exp(b * t);
-                          price = PricingService.calculateSwapPrice([forward], [t], r);
+                          const forward = calculateCommodityForwardPrice(spot, b, t);
+                          price = calculateSwapPrice([forward], [t], r);
                           greeks = { delta: 0, gamma: 0, theta: 0, vega: 0, rho: 0 };
                         } else if (option.type === 'call' || option.type === 'put') {
                           // Options vanilles
                           if (optionPricingModel === 'monte-carlo') {
-                            price = PricingService.calculateVanillaOptionMonteCarlo(
+                            price = calculateVanillaOptionMonteCarlo(
                               option.type,
                               S,
                               K,
@@ -9671,23 +7699,13 @@ const pricingFunctions = {
                               1000
                             );
                           } else {
-                            // Black-Scholes
-                            const d1 = (Math.log(S / K) + (r + sigma * sigma / 2) * t) / (sigma * Math.sqrt(t));
-                            const d2 = d1 - sigma * Math.sqrt(t);
-                            const Nd1 = (1 + PricingService.erf(d1 / Math.sqrt(2))) / 2;
-                            const Nd2 = (1 + PricingService.erf(d2 / Math.sqrt(2))) / 2;
-                            
-                            if (option.type === 'call') {
-                              price = S * Nd1 - K * Math.exp(-r * t) * Nd2;
-                            } else {
-                              price = K * Math.exp(-r * t) * (1 - Nd2) - S * (1 - Nd1);
-                            }
+                            price = calculateBlackScholesSpotPrice(option.type, S, K, r, t, sigma);
                           }
-                          greeks = PricingService.calculateGreeks(option.type, S, K, r, b, t, sigma);
+                          greeks = calculateGreeks(option.type, S, K, r, b, t, sigma);
                         } else if (option.type.includes('knockout') || option.type.includes('knockin')) {
                           // Options barrières
                           if (barrierPricingModel === 'closed-form') {
-                            price = PricingService.calculateBarrierOptionClosedForm(
+                            price = calculateBarrierOptionClosedForm(
                               option.type,
                               S,
                               K,
@@ -9700,7 +7718,7 @@ const pricingFunctions = {
                               barrierOptionSimulations || 1000
                             );
                           } else {
-                            price = PricingService.calculateBarrierOptionPrice(
+                            price = calculateBarrierOptionPrice(
                               option.type,
                               S,
                               K,
@@ -9712,7 +7730,7 @@ const pricingFunctions = {
                               barrierOptionSimulations || 1000
                             );
                           }
-                          greeks = PricingService.calculateGreeks(
+                          greeks = calculateGreeks(
                             option.type,
                             S,
                             K,
@@ -9727,7 +7745,7 @@ const pricingFunctions = {
                           // Options digitales
                           const rebate = option.rebate !== undefined ? option.rebate : 1;
                           const numSimulations = barrierOptionSimulations || 10000;
-                          price = PricingService.calculateDigitalOptionPrice(
+                          price = calculateDigitalOptionPrice(
                             option.type,
                             S,
                             K,
@@ -9739,7 +7757,7 @@ const pricingFunctions = {
                             numSimulations,
                             rebate
                           );
-                          greeks = PricingService.calculateGreeks(
+                          greeks = calculateGreeks(
                             option.type,
                             S,
                             K,
@@ -9753,7 +7771,7 @@ const pricingFunctions = {
                           );
                         }
                         
-                        price = Math.max(0, price);
+                        price = clampOptionPriceNonNegative(price);
                         const adjustedPrice = price * quantity;
                         
                         // Agréger les prix et grecques en tenant compte de la quantité

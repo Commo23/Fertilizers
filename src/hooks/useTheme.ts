@@ -22,7 +22,7 @@ export function useTheme() {
         return window.__THEME_INIT__;
       }
     }
-    return "system";
+    return "dark";
   });
   
   useEffect(() => {

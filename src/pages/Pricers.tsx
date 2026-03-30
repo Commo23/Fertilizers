@@ -28,7 +28,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { CURRENCY_PAIRS } from '@/pages/Index'; // Commodity data
 import PayoffChart from '@/components/PayoffChart';
-import { PricingService, Greeks } from '@/services/PricingService';
+import {
+  PricingService,
+  Greeks,
+  calculateVanillaSpotMcOrBs,
+  calculateCommodityForwardPrice,
+  strategyBuilderAnnualPercentToDecimal,
+} from '@/services/PricingService';
 import { Commodity, CommodityCategory, fetchCommoditiesData } from '@/services/commodityApi';
 import { useInterestRates } from '@/hooks/useInterestRates';
 import { fetchAllCountries, CountryBondData } from '@/services/rateExplorer/bondsApi';
@@ -676,8 +682,7 @@ const Pricers = () => {
     }
   }, [getSelectedCurrency, isCurveMode, getBankRateForCurrency]);
   
-  // Helper functions for commodity pricing
-  const getRiskFreeRate = () => pricingInputs.interestRate / 100;
+  const getRiskFreeRate = () => strategyBuilderAnnualPercentToDecimal(pricingInputs.interestRate);
   const calculateCostOfCarry = () => getRiskFreeRate();
 
   // Volume principal (simplifié)
@@ -832,13 +837,23 @@ const Pricers = () => {
       const sigma = strategyComponent.volatility / 100;
       
       if (strategyComponent.type === 'forward') {
-        // Pour les forwards seulement, calculer le forward
-        const forward = pricingInputs.spotPrice * Math.exp(calculateCostOfCarry() * pricingInputs.timeToMaturity);
+        const forward = calculateCommodityForwardPrice(
+          pricingInputs.spotPrice,
+          getRiskFreeRate(),
+          0,
+          0,
+          pricingInputs.timeToMaturity
+        );
         price = forward - strike;
         methodName = 'Forward Pricing';
       } else if (strategyComponent.type === 'swap') {
-        // Pour les swaps, calculer le forward puis utiliser swap pricing
-        const forward = pricingInputs.spotPrice * Math.exp(calculateCostOfCarry() * pricingInputs.timeToMaturity);
+        const forward = calculateCommodityForwardPrice(
+          pricingInputs.spotPrice,
+          getRiskFreeRate(),
+          0,
+          0,
+          pricingInputs.timeToMaturity
+        );
         price = PricingService.calculateSwapPrice(
           [forward],
           [pricingInputs.timeToMaturity],
@@ -846,33 +861,18 @@ const Pricers = () => {
         );
         methodName = 'Swap Pricing';
       } else if (strategyComponent.type === 'call' || strategyComponent.type === 'put') {
-        // ✅ VANILLAS — STRICTEMENT COMME STRATEGY BUILDER (Index.tsx lignes 2097-2124)
-        if (optionPricingModel === 'monte-carlo') {
-          price = PricingService.calculateVanillaOptionMonteCarlo(
+        price = calculateVanillaSpotMcOrBs(
           strategyComponent.type,
-            S, // Spot comme Strategy Builder
-            K,
-            r,
-            0, // foreignRate = 0 pour commodity (Strategy Builder utilise params.foreignRate / 100)
-            t,
-            sigma,
-            1000 // Strategy Builder utilise 1000 pour vanilla
-          );
-          methodName = 'Monte Carlo (vanilla)';
-        } else {
-          // ✅ Black-Scholes EXACT comme Strategy Builder (lignes 2112-2123)
-          const d1 = (Math.log(S / K) + (r + sigma * sigma / 2) * t) / (sigma * Math.sqrt(t));
-          const d2 = d1 - sigma * Math.sqrt(t);
-          const Nd1 = (1 + PricingService.erf(d1 / Math.sqrt(2))) / 2;
-          const Nd2 = (1 + PricingService.erf(d2 / Math.sqrt(2))) / 2;
-          
-          if (strategyComponent.type === 'call') {
-            price = S * Nd1 - K * Math.exp(-r * t) * Nd2;
-          } else { // put
-            price = K * Math.exp(-r * t) * (1 - Nd2) - S * (1 - Nd1);
-          }
-          methodName = 'Black-Scholes (spot)';
-        }
+          S,
+          K,
+          r,
+          0,
+          t,
+          sigma,
+          optionPricingModel === 'monte-carlo' ? 'monte-carlo' : 'black-scholes'
+        );
+        methodName =
+          optionPricingModel === 'monte-carlo' ? 'Monte Carlo (vanilla)' : 'Black-Scholes (spot)';
       } else if (strategyComponent.type.includes('knockout') || strategyComponent.type.includes('knockin')) {
         // ✅ BARRIER OPTIONS — STRICTEMENT COMME STRATEGY BUILDER (lignes 2022-2063)
         if (barrierPricingModel === 'closed-form') {
@@ -1133,18 +1133,15 @@ const Pricers = () => {
     const premium = pricingResults.length > 0 ? pricingResults[0].price : 0; // ✅ Vraie prime calculée
     
     return priceRange.map(price => {
-      // ✅ UTILISER STRICTEMENT PricingService.calculateStrategyPayoffAtPrice
-      let totalPayoff = PricingService.calculateStrategyPayoffAtPrice([strategyComponent], price, spot);
+      const unitPayoff = PricingService.calculateStrategyPayoffAtPrice([strategyComponent], price, spot);
+      const quantity = strategyComponent.quantity / 100;
+      let totalPayoff = unitPayoff * quantity;
       
-      // ✅ Intégrer la vraie prime dans le payoff
-      // Pour un achat d'option (quantity > 0), on soustrait la prime payée
-      // Pour une vente d'option (quantity < 0), on ajoute la prime reçue
-      if (premium !== 0 && strategyComponent.quantity !== 0) {
-        const quantity = strategyComponent.quantity / 100;
+      if (premium !== 0 && quantity !== 0) {
         if (quantity > 0) {
-          totalPayoff -= premium; // Achat: on paie la prime
+          totalPayoff -= premium;
         } else if (quantity < 0) {
-          totalPayoff += premium; // Vente: on reçoit la prime
+          totalPayoff += premium;
         }
       }
       
@@ -1191,12 +1188,12 @@ const Pricers = () => {
         let greeks: Greeks | undefined;
         
         if (strategyComponent.type === 'forward') {
-          const forward = spot * Math.exp(b * pricingInputs.timeToMaturity);
+          const forward = calculateCommodityForwardPrice(spot, b, 0, 0, pricingInputs.timeToMaturity);
           price = forward - strike;
           // Les forwards n'ont pas de grecques (dérivées linéaires)
           greeks = { delta: 1, gamma: 0, theta: 0, vega: 0, rho: 0 };
         } else if (strategyComponent.type === 'swap') {
-          const forward = spot * Math.exp(b * pricingInputs.timeToMaturity);
+          const forward = calculateCommodityForwardPrice(spot, b, 0, 0, pricingInputs.timeToMaturity);
           price = PricingService.calculateSwapPrice(
             [forward],
             [pricingInputs.timeToMaturity],
@@ -1205,51 +1202,25 @@ const Pricers = () => {
           // Les swaps n'ont pas de grecques significatives
           greeks = { delta: 0, gamma: 0, theta: 0, vega: 0, rho: 0 };
         } else if (strategyComponent.type === 'call' || strategyComponent.type === 'put') {
-          // ✅ VANILLAS — STRICTEMENT COMME STRATEGY BUILDER
-          if (optionPricingModel === 'monte-carlo') {
-            price = PricingService.calculateVanillaOptionMonteCarlo(
+          price = calculateVanillaSpotMcOrBs(
             strategyComponent.type,
-              S,
-              K,
-              r,
-              b,
-              t,
-              sigma,
-              1000
-            );
-            // Pour Monte Carlo, calculer les grecques avec Black-76
-            greeks = PricingService.calculateGreeks(
-              strategyComponent.type,
-              S,
-              K,
-              r,
-              b,
-              t,
-              sigma
-            );
-          } else {
-            // Black-Scholes EXACT comme Strategy Builder
-            const d1 = (Math.log(S / K) + (r + sigma * sigma / 2) * t) / (sigma * Math.sqrt(t));
-            const d2 = d1 - sigma * Math.sqrt(t);
-            const Nd1 = (1 + PricingService.erf(d1 / Math.sqrt(2))) / 2;
-            const Nd2 = (1 + PricingService.erf(d2 / Math.sqrt(2))) / 2;
-            
-            if (strategyComponent.type === 'call') {
-              price = S * Nd1 - K * Math.exp(-r * t) * Nd2;
-            } else {
-              price = K * Math.exp(-r * t) * (1 - Nd2) - S * (1 - Nd1);
-            }
-            // Calculer les grecques avec Black-76 (commodity)
-            greeks = PricingService.calculateGreeks(
-              strategyComponent.type,
-              S,
-              K,
-              r,
-              b,
-              t,
-              sigma
-            );
-          }
+            S,
+            K,
+            r,
+            b,
+            t,
+            sigma,
+            optionPricingModel === 'monte-carlo' ? 'monte-carlo' : 'black-scholes'
+          );
+          greeks = PricingService.calculateGreeks(
+            strategyComponent.type,
+            S,
+            K,
+            r,
+            b,
+            t,
+            sigma
+          );
         } else if (strategyComponent.type.includes('knockout') || strategyComponent.type.includes('knockin')) {
           // ✅ BARRIER OPTIONS — STRICTEMENT COMME STRATEGY BUILDER
           if (barrierPricingModel === 'closed-form') {
@@ -2346,7 +2317,7 @@ const Pricers = () => {
                       <span className="font-semibold text-sm text-muted-foreground">Underlying Price</span><br/>
                       <span className="text-lg font-semibold">
                         {underlyingPriceType === 'forward' 
-                          ? `${(spot * Math.exp(calculateCostOfCarry() * pricingInputs.timeToMaturity)).toFixed(4)} (Forward)`
+                          ? `${calculateCommodityForwardPrice(spot, getRiskFreeRate(), 0, 0, pricingInputs.timeToMaturity).toFixed(4)} (Forward)`
                           : `${spot} (Spot)`
                         }
                       </span>
