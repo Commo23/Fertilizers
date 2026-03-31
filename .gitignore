@@ -12,9 +12,48 @@ dist
 dist-ssr
 *.local
 
+# Build outputs
+build
+out
+.next
+.nuxt
+.svelte-kit
+.astro
+.parcel-cache
+.vite
+.turbo
+.swc
+
+# Coverage / test artifacts
+coverage
+.nyc_output
+playwright-report
+test-results
+
+# TypeScript / tooling caches
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+
+# Env / secrets (never commit)
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets*.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
 .idea
 .DS_Store
 *.suo
@@ -22,3 +61,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Cursor / local tooling
+.cursor
+**/.cursor
+
+# OS / misc
+Thumbs.db
+Desktop.ini
+
+# Markdown (requested)
+*.md
