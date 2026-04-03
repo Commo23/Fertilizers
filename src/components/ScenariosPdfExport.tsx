@@ -5,6 +5,7 @@ import { SavedScenario } from '../types/Scenario';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import html2canvas from 'html2canvas';
+import { BRAND } from '@/constants/branding';
 
 interface Props {
   scenarios: SavedScenario[];
@@ -1197,7 +1198,7 @@ const ScenariosPdfExport = ({ scenarios, selectedScenarios, setSelectedScenarios
         // Texte du pied de page
         pdf.setFontSize(8);
         pdf.setTextColor(100);
-        const footerText = `${cleanTitle} | Page ${i} of ${totalPages} | Commodity Risk Manager`;
+        const footerText = `${cleanTitle} | Page ${i} of ${totalPages} | ${BRAND.name}`;
         pdf.text(
           footerText, 
           pageWidth / 2, 

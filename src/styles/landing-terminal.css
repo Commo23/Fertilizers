@@ -1,0 +1,122 @@
+/* CommoHedge / industrial terminal landing — scoped to .landing-terminal-root */
+
+.landing-terminal-root .material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.landing-terminal-root .landing-glass-card {
+  background: rgba(46, 53, 69, 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.landing-terminal-root .landing-industrial-gradient {
+  background: linear-gradient(135deg, #aef833 0%, #93db04 100%);
+}
+
+.landing-terminal-root .landing-ticker-wrap {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.landing-terminal-root .landing-ticker-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 4rem;
+  animation: landing-ticker 30s linear infinite;
+}
+
+@keyframes landing-ticker {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.landing-terminal-root .landing-reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.landing-terminal-root .landing-reveal.landing-reveal-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.landing-terminal-root .landing-floating-ui {
+  animation: landing-floating 4s ease-in-out infinite;
+}
+
+@keyframes landing-floating {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-15px);
+  }
+}
+
+.landing-terminal-root .landing-floating-vessel {
+  animation: landing-floating-vessel 6s ease-in-out infinite;
+}
+
+@keyframes landing-floating-vessel {
+  0%,
+  100% {
+    transform: scale(1.1) translateY(0);
+  }
+  50% {
+    transform: scale(1.1) translateY(-15px);
+  }
+}
+
+.landing-terminal-root .landing-progress-bar {
+  width: 0%;
+  transition: width 1.5s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.landing-terminal-root .landing-reveal.landing-reveal-active .landing-progress-bar {
+  width: 70%;
+}
+
+.landing-terminal-root .hero-glow-container:hover .landing-hero-img {
+  transform: scale(1.15) !important;
+  filter: brightness(1.1) contrast(1.1) drop-shadow(0 0 30px rgba(174, 248, 51, 0.2));
+}
+
+.landing-terminal-root .landing-hero-img {
+  transition: transform 1.2s cubic-bezier(0.2, 0.8, 0.2, 1), filter 1.2s ease;
+}
+
+.landing-terminal-root .landing-tilt-card {
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+  transform-style: preserve-3d;
+}
+
+.landing-terminal-root .landing-btn-industrial {
+  border-radius: 0.125rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-terminal-root .landing-ticker-content,
+  .landing-terminal-root .landing-floating-ui,
+  .landing-terminal-root .landing-floating-vessel {
+    animation: none !important;
+  }
+
+  .landing-terminal-root .landing-reveal {
+    opacity: 1;
+    transform: none;
+  }
+
+  .landing-terminal-root .landing-progress-bar {
+    width: 70%;
+  }
+}

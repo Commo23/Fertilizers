@@ -99,7 +99,7 @@ export default function HedgeHelper() {
                   Bienvenue sur <span className="text-primary">Hedge Assistant</span>
                 </h2>
                 <p className="text-muted-foreground max-w-md mb-8">
-                  Je suis l'assistant de la plateforme Commodity Risk Manager, spécialisé dans le hedging FX et matières premières.
+                  Je suis l'assistant CommoHedge, spécialisé dans le hedging FX et matières premières.
                   Posez-moi vos questions sur les stratégies de couverture, l'analyse des risques, ou les instruments dérivés.
                 </p>
 

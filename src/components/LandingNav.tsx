@@ -1,156 +1,130 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Menu, X, ArrowRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Menu, X } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { BRAND } from "@/constants/branding";
+
+const navLinks: { name: string; href: string; external?: boolean }[] = [
+  { name: "Markets", href: "/commodity-market", external: true },
+  { name: "Pricers", href: "/pricers", external: true },
+  { name: "Platform", href: "#risk-architect" },
+  { name: "Strategy", href: "/strategy-builder", external: true },
+  { name: "FAQ", href: "#faq" },
+];
 
 const LandingNav = () => {
   const navigate = useNavigate();
-  const [isScrolled, setIsScrolled] = useState(false);
+  const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const navLinks = [
-    { name: 'Sectors', href: '#sectors' },
-    { name: 'Features', href: '#features' },
-    { name: 'Testimonials', href: '#testimonials' },
-    { name: 'FAQ', href: '#faq' },
-    { name: 'Contact', href: '#contact' }
-  ];
-
-  const handleNavClick = (href: string) => {
-    if (href.startsWith('#')) {
-      const element = document.querySelector(href);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const go = (href: string, external?: boolean) => {
+    setIsMobileMenuOpen(false);
+    if (external) {
+      navigate(href);
+      return;
+    }
+    if (href.startsWith("#")) {
+      const el = document.querySelector(href);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
       }
-      setIsMobileMenuOpen(false);
     }
   };
 
   return (
-    <nav className={`fixed top-0 w-full z-50 transition-all duration-300 ${
-      isScrolled 
-        ? 'bg-background/85 backdrop-blur-xl border-b border-border shadow-lg shadow-primary/10' 
-        : 'bg-transparent'
-    }`}>
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#C4D82E] to-[#B4C82E] rounded-xl flex items-center justify-center shadow-lg shadow-[#C4D82E]/50">
-              <span className="text-black font-black text-sm">CM</span>
-            </div>
-            <div>
-              <div className="font-black text-lg transition-colors text-foreground">
-                Commodity Risk
-              </div>
-              <div className="text-xs transition-colors text-muted-foreground">
-                Risk Management Platform
-              </div>
-            </div>
-          </div>
+    <nav className="fixed left-1/2 top-0 z-50 flex w-full max-w-[1920px] -translate-x-1/2 items-center justify-between border-b border-[#424a35]/20 bg-[#0c1322]/60 px-6 py-5 backdrop-blur-xl md:px-12">
+      <button
+        type="button"
+        onClick={() => navigate("/")}
+        className="flex items-center gap-3 text-left"
+      >
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm bg-gradient-to-br from-[#aef833] to-[#93db04] shadow-md shadow-[#aef833]/25"
+          aria-hidden
+        >
+          <span className="font-headline text-sm font-black text-[#213600]">{BRAND.logoMark}</span>
+        </span>
+        <span className="font-headline text-xl font-black tracking-tight text-white md:text-2xl">{BRAND.name}</span>
+      </button>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
+      <div className="hidden items-center space-x-10 md:flex">
+        {navLinks.map((link) => (
+          <button
+            key={link.name}
+            type="button"
+            onClick={() => go(link.href, link.external)}
+            className="font-headline text-sm font-bold uppercase tracking-tight text-[#dce2f7] transition-colors hover:text-white"
+          >
+            {link.name}
+          </button>
+        ))}
+      </div>
+
+      <div className="hidden items-center space-x-6 md:flex">
+        <button
+          type="button"
+          onClick={() => navigate("/login")}
+          className="font-headline text-sm font-bold uppercase tracking-tight text-[#dce2f7] transition-colors hover:text-white"
+        >
+          Client login
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate("/login?mode=signup")}
+          className="landing-btn-industrial bg-[#aef833] px-6 py-2 font-headline text-sm font-bold uppercase tracking-tight text-[#213600] transition-all duration-200 hover:scale-95"
+        >
+          Launch terminal
+        </button>
+      </div>
+
+      <button
+        type="button"
+        className="p-2 text-white md:hidden"
+        aria-label="Menu"
+        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+      >
+        {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+      </button>
+
+      {isMobileMenuOpen && (
+        <div className="absolute left-0 right-0 top-full border-b border-[#424a35]/30 bg-[#0c1322]/95 px-6 py-4 backdrop-blur-xl md:hidden">
+          <div className="flex flex-col gap-3">
             {navLinks.map((link) => (
-              <a
+              <button
                 key={link.name}
-                href={link.name}
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNavClick(link.href);
-                }}
-                className="transition-colors duration-200 text-sm font-medium text-muted-foreground hover:text-primary"
+                type="button"
+                onClick={() => go(link.href, link.external)}
+                className="py-2 text-left font-headline text-sm font-bold uppercase tracking-tight text-[#dce2f7]"
               >
                 {link.name}
-              </a>
+              </button>
             ))}
-          </div>
-
-          {/* CTA Buttons */}
-          <div className="hidden md:flex items-center space-x-4">
-              <Button 
-                variant="ghost" 
-                size="sm"
-              className={`text-muted-foreground hover:text-primary ${isScrolled ? 'hover:bg-muted/50' : 'hover:bg-muted/30'} backdrop-blur-sm`}
-              onClick={() => navigate('/login')}
-              >
-                Login
-              </Button>
-              <Button 
-                size="sm"
-              className="bg-gradient-to-r from-[#C4D82E] to-[#B4C82E] text-black hover:from-[#B4C82E] hover:to-[#C4D82E] font-bold shadow-lg shadow-[#C4D82E]/30"
-              onClick={() => navigate('/login?mode=signup')}
-              >
-                Get Started
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-          </div>
-
-          {/* Mobile menu button */}
-          <div className="md:hidden">
             <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 transition-colors text-foreground hover:text-primary"
+              type="button"
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                navigate("/login");
+              }}
+              className="py-2 text-left font-headline text-sm font-bold uppercase text-[#dce2f7]"
             >
-              {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              Client login
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                navigate("/login?mode=signup");
+              }}
+              className="landing-btn-industrial bg-[#aef833] py-3 font-headline text-sm font-bold uppercase text-[#213600]"
+            >
+              Launch terminal
             </button>
           </div>
         </div>
-
-        {/* Mobile Navigation */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden">
-            <div className="px-2 pt-2 pb-3 space-y-1 bg-card/95 backdrop-blur-xl border-t border-border">
-              {navLinks.map((link) => (
-                <a
-                  key={link.name}
-                  href={link.href}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleNavClick(link.href);
-                  }}
-                  className="block px-3 py-2 text-muted-foreground hover:text-primary hover:bg-muted/50 transition-colors duration-200 rounded-lg"
-                >
-                  {link.name}
-                </a>
-              ))}
-              <div className="border-t border-border pt-4 space-y-2">
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                  className="w-full text-muted-foreground hover:text-primary hover:bg-muted/50"
-                  onClick={() => {
-                    navigate('/login');
-                    setIsMobileMenuOpen(false);
-                  }}
-                >
-                    Login
-                  </Button>
-                  <Button 
-                    size="sm"
-                  className="w-full bg-gradient-to-r from-[#C4D82E] to-[#B4C82E] text-black hover:from-[#B4C82E] hover:to-[#C4D82E] font-bold"
-                  onClick={() => {
-                    navigate('/login?mode=signup');
-                    setIsMobileMenuOpen(false);
-                  }}
-                  >
-                    Get Started
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </nav>
   );
 };

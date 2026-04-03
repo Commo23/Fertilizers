@@ -42,6 +42,7 @@ import { ScrollArea } from "@/components/ui/ScrollArea";
 import { useAuth } from "@/hooks/useAuth";
 import { LogOut, User } from "lucide-react";
 import { SyncIndicator } from "./SyncIndicator";
+import { BRAND } from "@/constants/branding";
 import "@/styles/sidebar-zoom.css";
 
 // Dashboard - Standalone
@@ -220,14 +221,12 @@ export function AppSidebar() {
             <Globe className="h-6 w-6 text-primary hidden" />
           </div>
           <div className="flex-1">
-            <div className="text-sm font-bold text-primary mb-1">
-              {primaryName}
+            <div className="text-lg font-bold text-primary">
+              {primaryName || BRAND.name}
             </div>
-            <div className="text-xs text-muted-foreground mb-2">
-              {secondaryName}
+            <div className="text-xs text-muted-foreground">
+              {secondaryName || BRAND.tagline}
             </div>
-            <h2 className="text-lg font-bold text-foreground">Commodity Risk Manager</h2>
-            <p className="text-sm text-muted-foreground">Commodity Hedging Platform</p>
           </div>
         </div>
       </SidebarHeader>

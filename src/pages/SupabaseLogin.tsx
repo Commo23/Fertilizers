@@ -1,305 +1,285 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Button } from '../components/ui/button'
-import { Input } from '../components/ui/input'
-import { Label } from '../components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Badge } from '../components/ui/badge'
-import { Alert, AlertDescription } from '../components/ui/alert'
-import { useToast } from '../hooks/use-toast'
-import { useSupabaseAuth } from '../hooks/useSupabaseAuth'
-import { 
-  Mail, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  Chrome, 
-  Apple, 
-  ArrowLeft,
-  Loader2,
-  CheckCircle,
-  AlertCircle
-} from 'lucide-react'
+import React, { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
+import { Alert, AlertDescription } from "../components/ui/alert";
+import { useToast } from "../hooks/use-toast";
+import { useSupabaseAuth } from "../hooks/useSupabaseAuth";
+import { BRAND } from "@/constants/branding";
+import "@/styles/landing-terminal.css";
+import { Mail, Lock, Eye, EyeOff, Chrome, Apple, ArrowLeft, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
 const SupabaseLogin: React.FC = () => {
-  const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const { toast } = useToast()
-  const { 
-    isAuthenticated, 
-    user, 
-    isLoading, 
-    signIn, 
-    signUp, 
-    signInWithGoogle,
-    resetPassword 
-  } = useSupabaseAuth()
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { toast } = useToast();
+  const { isAuthenticated, user, isLoading, signIn, signUp, signInWithGoogle, resetPassword } = useSupabaseAuth();
 
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState('')
-  const [isSignUp, setIsSignUp] = useState(false)
-  const [name, setName] = useState('')
-  const [role, setRole] = useState('Risk Manager')
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [name, setName] = useState("");
+  const role = "Risk Manager";
 
-  // Détecter le paramètre mode pour forcer l'inscription ou la connexion
   useEffect(() => {
-    const mode = searchParams.get('mode')
-    if (mode === 'signup') {
-      setIsSignUp(true)
-    } else if (mode === 'login') {
-      setIsSignUp(false)
+    const mode = searchParams.get("mode");
+    if (mode === "signup") {
+      setIsSignUp(true);
+    } else if (mode === "login") {
+      setIsSignUp(false);
     }
-  }, [searchParams])
+  }, [searchParams]);
 
-  // Rediriger si déjà connecté
   useEffect(() => {
     if (isAuthenticated && user) {
-      navigate('/dashboard')
+      navigate("/dashboard");
     }
-  }, [isAuthenticated, user, navigate])
+  }, [isAuthenticated, user, navigate]);
 
   const handleEmailAuth = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
+    e.preventDefault();
+    setError("");
 
-    // Validation des champs
     if (!email || !password) {
-      setError('Veuillez remplir tous les champs')
-      return
+      setError("Veuillez remplir tous les champs");
+      return;
     }
 
     if (isSignUp && !name.trim()) {
-      setError('Veuillez entrer votre nom complet')
-      return
+      setError("Veuillez entrer votre nom complet");
+      return;
     }
 
     if (password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères')
-      return
+      setError("Le mot de passe doit contenir au moins 6 caractères");
+      return;
     }
 
     try {
-      console.log('🔄 Tentative d\'authentification:', { email, isSignUp })
-      
-      let result
+      let result;
       if (isSignUp) {
-        result = await signUp(email, password, { name, role })
+        result = await signUp(email, password, { name, role });
         if (result.success) {
           toast({
             title: "Inscription réussie",
             description: result.message || "Vérifiez votre email pour confirmer votre compte",
-          })
-          
-          // Si l'email est confirmé automatiquement, rediriger
+          });
+
           if (result.user?.email_confirmed_at) {
             setTimeout(() => {
-              navigate('/dashboard')
-            }, 2000)
+              navigate("/dashboard");
+            }, 2000);
           }
         }
       } else {
-        result = await signIn(email, password)
+        result = await signIn(email, password);
         if (result.success) {
-          navigate('/dashboard')
+          navigate("/dashboard");
         }
       }
 
       if (!result.success) {
-        setError(result.error || 'Une erreur est survenue')
-        console.error('❌ Erreur d\'authentification:', result.error)
+        setError(result.error || "Une erreur est survenue");
       }
-    } catch (err) {
-      const errorMessage = 'Une erreur inattendue est survenue'
-      setError(errorMessage)
-      console.error('❌ Erreur d\'authentification:', err)
+    } catch {
+      setError("Une erreur inattendue est survenue");
     }
-  }
+  };
 
   const handleGoogleAuth = async () => {
     try {
-      const result = await signInWithGoogle()
+      const result = await signInWithGoogle();
       if (!result.success) {
-        setError(result.error || 'Erreur de connexion Google')
+        setError(result.error || "Erreur de connexion Google");
       }
-    } catch (err) {
-      setError('Erreur de connexion Google')
-      console.error('Erreur Google Auth:', err)
+    } catch {
+      setError("Erreur de connexion Google");
     }
-  }
+  };
 
   const handleForgotPassword = async () => {
     if (!email) {
-      setError('Veuillez entrer votre email d\'abord')
-      return
+      setError("Veuillez entrer votre email d'abord");
+      return;
     }
 
     try {
-      const result = await resetPassword(email)
+      const result = await resetPassword(email);
       if (result.success) {
         toast({
           title: "Email envoyé",
           description: "Vérifiez votre boîte email pour réinitialiser votre mot de passe",
-        })
+        });
       } else {
-        setError(result.error || 'Erreur d\'envoi de l\'email')
+        setError(result.error || "Erreur d'envoi de l'email");
       }
-    } catch (err) {
-      setError('Erreur de réinitialisation')
-      console.error('Erreur reset password:', err)
+    } catch {
+      setError("Erreur de réinitialisation");
     }
-  }
+  };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
-        <div className="flex items-center gap-2 text-white">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <span>Checking authentication...</span>
+      <div className="landing-terminal-root dark flex min-h-screen items-center justify-center bg-[#0c1322] text-[#dce2f7]">
+        <div className="flex items-center gap-2 font-headline">
+          <Loader2 className="h-6 w-6 animate-spin text-[#aef833]" />
+          <span>Vérification de la session…</span>
         </div>
       </div>
-    )
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-6">
-      {/* Animated background particles */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+    <div className="landing-terminal-root dark relative min-h-screen overflow-hidden bg-[#0c1322] text-[#dce2f7]">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-40 right-0 h-96 w-96 rounded-full bg-[#aef833]/10 blur-3xl" />
+        <div className="absolute -bottom-40 left-0 h-96 w-96 rounded-full bg-[#93db04]/5 blur-3xl" />
+        <div
+          className="absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage: "url(https://www.transparenttextures.com/patterns/carbon-fibre.png)",
+          }}
+        />
       </div>
 
-      <div className="relative w-full max-w-md">
-        {/* Back to landing page */}
+      <div className="relative mx-auto flex w-full max-w-md flex-col items-stretch p-6 pt-10">
         <Button
           variant="ghost"
-          onClick={() => navigate('/')}
-          className="absolute -top-16 left-0 text-white/70 hover:text-white"
+          onClick={() => navigate("/")}
+          className="mb-6 -ml-2 w-fit font-headline text-xs font-bold uppercase tracking-wider text-[#c1caaf] hover:bg-white/5 hover:text-white"
         >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to home
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Retour à l&apos;accueil
         </Button>
 
-        <Card className="backdrop-blur-xl bg-white/10 border-white/20 shadow-2xl">
-          <CardHeader className="text-center space-y-4">
+        <Card className="landing-glass-card border border-[#424a35]/25 bg-[#141b2b]/70 shadow-2xl backdrop-blur-xl">
+          <CardHeader className="space-y-4 text-center">
             <div className="flex justify-center">
-              <div className="h-16 w-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                <span className="text-2xl font-bold text-white">FX</span>
+              <div
+                className="flex h-16 w-16 items-center justify-center rounded-sm bg-gradient-to-br from-[#aef833] to-[#93db04] shadow-lg shadow-[#aef833]/20"
+                aria-hidden
+              >
+                <span className="font-headline text-2xl font-black text-[#213600]">{BRAND.logoMark}</span>
               </div>
             </div>
-            
+
             <div>
-              <CardTitle className="text-2xl font-bold text-white">
-                {isSignUp ? 'Create Account' : 'Sign In'}
+              <CardTitle className="font-headline text-2xl font-bold tracking-tight text-white">
+                {isSignUp ? "Créer un compte" : "Connexion"}
               </CardTitle>
-              <CardDescription className="text-white/70">
-                {isSignUp 
-                  ? 'Join the FX risk management platform' 
-                  : 'Access your FX dashboard'
-                }
+              <CardDescription className="text-[#c1caaf]">
+                {isSignUp
+                  ? `${BRAND.name} — ${BRAND.tagline}`
+                  : `Accédez au terminal ${BRAND.name}`}
               </CardDescription>
             </div>
 
-            {/* Status badges */}
             <div className="flex justify-center gap-2">
-              <Badge variant="outline" className="text-green-400 border-green-400/30">
-                <CheckCircle className="h-3 w-3 mr-1" />
-                Secure
+              <Badge variant="outline" className="border-[#aef833]/35 font-headline text-[10px] uppercase tracking-wider text-[#aef833]">
+                <CheckCircle className="mr-1 h-3 w-3" />
+                Sécurisé
               </Badge>
-              <Badge variant="outline" className="text-blue-400 border-blue-400/30">
-                <CheckCircle className="h-3 w-3 mr-1" />
-                Supabase
+              <Badge variant="outline" className="border-[#424a35]/50 font-headline text-[10px] uppercase tracking-wider text-[#aeb5c5]">
+                Supabase Auth
               </Badge>
             </div>
           </CardHeader>
 
           <CardContent className="space-y-6">
-            {/* Error message */}
             {error && (
-              <Alert variant="destructive" className="bg-red-500/10 border-red-500/30">
+              <Alert variant="destructive" className="border-red-500/40 bg-red-950/40 text-red-100">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-red-200">{error}</AlertDescription>
+                <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
 
-            {/* Social login buttons */}
             <div className="space-y-3">
               <Button
                 onClick={handleGoogleAuth}
                 variant="outline"
-                className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20"
+                className="w-full border-[#424a35]/40 bg-[#070e1d]/80 font-headline text-sm text-white hover:bg-[#232a3a] hover:text-white"
                 disabled={isLoading}
               >
-                <Chrome className="h-5 w-5 mr-2" />
-                Continue with Google
+                <Chrome className="mr-2 h-5 w-5" />
+                Continuer avec Google
               </Button>
 
               <Button
                 variant="outline"
-                className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20"
+                className="w-full border-[#424a35]/30 bg-[#070e1d]/50 font-headline text-sm text-[#aeb5c5]"
                 disabled
               >
-                <Apple className="h-5 w-5 mr-2" />
-                Continue with Apple
-                <Badge variant="secondary" className="ml-2 text-xs">Coming Soon</Badge>
+                <Apple className="mr-2 h-5 w-5" />
+                Apple
+                <Badge variant="secondary" className="ml-2 text-[10px]">
+                  Bientôt
+                </Badge>
               </Button>
             </div>
 
-            {/* Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/20"></div>
+                <div className="w-full border-t border-[#424a35]/30" />
               </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-transparent text-white/70">or</span>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-[#141b2b]/90 px-2 font-headline uppercase tracking-widest text-[#8c947b]">ou</span>
               </div>
             </div>
 
-            {/* Email/Password form */}
             <form onSubmit={handleEmailAuth} className="space-y-4">
               {isSignUp && (
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="text-white">Full Name</Label>
+                  <Label htmlFor="name" className="font-headline text-xs uppercase tracking-wide text-[#c1caaf]">
+                    Nom complet
+                  </Label>
                   <Input
                     id="name"
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
-                    placeholder="Your full name"
+                    className="rounded-sm border-[#424a35]/40 bg-[#070e1d] text-white placeholder:text-[#8c947b]/80 focus-visible:ring-[#aef833]/40"
+                    placeholder="Votre nom"
                     required={isSignUp}
                   />
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-white">Email</Label>
+                <Label htmlFor="email" className="font-headline text-xs uppercase tracking-wide text-[#c1caaf]">
+                  Email
+                </Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-white/50" />
+                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8c947b]" />
                   <Input
                     id="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50"
-                    placeholder="your@email.com"
+                    className="rounded-sm border-[#424a35]/40 bg-[#070e1d] pl-10 text-white placeholder:text-[#8c947b]/80 focus-visible:ring-[#aef833]/40"
+                    placeholder="vous@entreprise.com"
                     required
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-white">Password</Label>
+                <Label htmlFor="password" className="font-headline text-xs uppercase tracking-wide text-[#c1caaf]">
+                  Mot de passe
+                </Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-white/50" />
+                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8c947b]" />
                   <Input
                     id="password"
-                    type={showPassword ? 'text' : 'password'}
+                    type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 bg-white/10 border-white/20 text-white placeholder:text-white/50"
-                    placeholder="Your password"
+                    className="rounded-sm border-[#424a35]/40 bg-[#070e1d] pl-10 pr-10 text-white placeholder:text-[#8c947b]/80 focus-visible:ring-[#aef833]/40"
+                    placeholder="••••••••"
                     required
                   />
                   <Button
@@ -307,7 +287,7 @@ const SupabaseLogin: React.FC = () => {
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-0 top-0 h-full px-3 text-white/50 hover:text-white"
+                    className="absolute right-0 top-0 h-full px-3 text-[#8c947b] hover:bg-transparent hover:text-white"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
@@ -320,58 +300,56 @@ const SupabaseLogin: React.FC = () => {
                     type="button"
                     variant="link"
                     onClick={handleForgotPassword}
-                    className="text-blue-400 hover:text-blue-300 p-0 h-auto"
+                    className="h-auto p-0 font-headline text-xs uppercase tracking-wide text-[#aef833] hover:text-[#dce2f7]"
                   >
-                    Forgot password?
+                    Mot de passe oublié ?
                   </Button>
                 </div>
               )}
 
               <Button
                 type="submit"
-                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white"
                 disabled={isLoading}
+                className="landing-btn-industrial landing-industrial-gradient w-full rounded-sm font-headline font-bold uppercase tracking-widest text-[#213600] hover:brightness-110"
               >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : null}
-                {isSignUp ? 'Create Account' : 'Sign In'}
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isSignUp ? "Créer le compte" : "Se connecter"}
               </Button>
             </form>
 
-            {/* Toggle sign up/sign in */}
             <div className="text-center">
               <Button
                 type="button"
                 variant="link"
                 onClick={() => {
-                  setIsSignUp(!isSignUp)
-                  setError('')
+                  setIsSignUp(!isSignUp);
+                  setError("");
                 }}
-                className="text-white/70 hover:text-white p-0 h-auto"
+                className="h-auto p-0 font-headline text-xs text-[#aeb5c5] hover:text-white"
               >
-                {isSignUp 
-                  ? 'Already have an account? Sign in' 
-                  : 'Don\'t have an account? Create one'
-                }
+                {isSignUp ? "Déjà un compte ? Se connecter" : "Pas encore de compte ? S’inscrire"}
               </Button>
             </div>
 
-            {/* Demo credentials info */}
             {!isSignUp && (
-              <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                <h4 className="text-sm font-medium text-blue-200 mb-2">Demo Account</h4>
-                <p className="text-xs text-blue-300/80">
-                  Email: <code className="bg-blue-500/20 px-1 rounded">demo@fx-hedging.com</code><br/>
-                  Password: <code className="bg-blue-500/20 px-1 rounded">demo123</code>
+              <div className="rounded-sm border border-[#aef833]/25 bg-[#070e1d]/80 p-4">
+                <h4 className="mb-2 font-headline text-xs font-bold uppercase tracking-wider text-[#aef833]">Compte démo</h4>
+                <p className="text-xs leading-relaxed text-[#c1caaf]">
+                  Email :{" "}
+                  <code className="rounded bg-[#232a3a] px-1.5 py-0.5 font-mono text-[#dce2f7]">demo@fx-hedging.com</code>
+                  <br />
+                  Mot de passe :{" "}
+                  <code className="rounded bg-[#232a3a] px-1.5 py-0.5 font-mono text-[#dce2f7]">demo123</code>
                 </p>
               </div>
             )}
           </CardContent>
         </Card>
+
+        <p className="mt-8 text-center font-headline text-[10px] uppercase tracking-widest text-[#424a35]">{BRAND.copyrightLine}</p>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default SupabaseLogin
+export default SupabaseLogin;

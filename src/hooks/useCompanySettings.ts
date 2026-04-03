@@ -20,7 +20,7 @@ interface AppSettings {
 
 const defaultSettings: AppSettings = {
   company: {
-    name: "Commodity Risk Manager - Risk Management Platform",
+    name: "CommoHedge - Commodity & FX hedging terminal",
     currency: "USD",
     timezone: "Europe/Paris",
     fiscalYearStart: "01-01"

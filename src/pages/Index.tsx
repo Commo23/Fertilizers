@@ -6387,7 +6387,7 @@ const Index = () => {
                     <div>
                       <label className="block text-sm font-medium mb-1">Type</label>
                       <select
-                        className="w-full p-2 border rounded"
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:[color-scheme:dark]"
                         value={component.type}
                         onChange={(e) => updateOption(index, 'type', e.target.value)}
                         disabled={component.type === 'swap' || component.type === 'forward'}
@@ -6474,7 +6474,7 @@ const Index = () => {
                     <div>
                       <label className="block text-sm font-medium mb-1">Strike Type</label>
                       <select
-                        className="w-full p-2 border rounded"
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:[color-scheme:dark]"
                             value={component.strikeType}
                         onChange={(e) => updateOption(index, 'strikeType', e.target.value)}
                       >
@@ -6497,7 +6497,7 @@ const Index = () => {
                         <div>
                           <label className="block text-sm font-medium mb-1">Barrier Type</label>
                           <select
-                            className="w-full p-2 border rounded"
+                            className="w-full h-9 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:[color-scheme:dark]"
                             value={component.barrierType || 'percent'}
                             onChange={(e) => updateOption(index, 'barrierType', e.target.value)}
                           >
@@ -6562,7 +6562,7 @@ const Index = () => {
                         <div>
                           <label className="block text-sm font-medium mb-1">Barrier Type</label>
                           <select
-                            className="w-full p-2 border rounded"
+                            className="w-full h-9 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:[color-scheme:dark]"
                             value={component.barrierType || 'percent'}
                             onChange={e => updateOption(index, 'barrierType', e.target.value)}
                           >
@@ -6628,7 +6628,7 @@ const Index = () => {
                     <div>
                       <label className="block text-sm font-medium mb-1">Type</label>
                       <select
-                        className="w-full p-2 border rounded"
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:[color-scheme:dark]"
                         value={option.type}
                         onChange={(e) => updateOption(index, 'type', e.target.value)}
                       >
@@ -6667,7 +6667,7 @@ const Index = () => {
                     <div>
                       <label className="block text-sm font-medium mb-1">Strike Type</label>
                       <select
-                        className="w-full p-2 border rounded"
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:[color-scheme:dark]"
                         value={option.strikeType}
                         onChange={(e) => updateOption(index, 'strikeType', e.target.value)}
                       >

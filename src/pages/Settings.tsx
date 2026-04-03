@@ -47,6 +47,7 @@ import {
   FolderOpen
 } from "lucide-react";
 import { useCompanySettings, companySettingsEmitter } from "@/hooks/useCompanySettings";
+import { BRAND } from "@/constants/branding";
 import { getLocalStorageStats, performEmergencyRecovery } from "@/utils/emergencyRecovery";
 import "@/styles/zoom-controls.css";
 import { fetchAllCountries, CountryBondData } from "@/services/rateExplorer/bondsApi";
@@ -177,7 +178,7 @@ const Settings = () => {
   };
   const [settings, setSettings] = useState<AppSettings>({
     company: {
-      name: "Commodity Risk Management Platform",
+      name: BRAND.nameWithTagline,
       currency: "USD",
       timezone: "Europe/Paris",
       fiscalYearStart: "01-01"
@@ -278,7 +279,7 @@ const Settings = () => {
   const [showCleanupDialog, setShowCleanupDialog] = useState(false);
   const [deletionStats, setDeletionStats] = useState<{total: number, deleted: number} | null>(null);
   const logo = getCompanyLogo();
-  const companyName = companySettings?.name || "Commodity Risk Management Platform";
+  const companyName = companySettings?.name || BRAND.nameWithTagline;
   const [pendingLogo, setPendingLogo] = useState<string | null>(null);
   const [logoMarkedForRemoval, setLogoMarkedForRemoval] = useState(false);
   const [pendingCompanyName, setPendingCompanyName] = useState<string | null>(null);
@@ -882,7 +883,7 @@ const Settings = () => {
             Application Settings
           </h1>
           <p className="text-muted-foreground">
-            General configuration for Commodity Risk Management system
+            General configuration for {BRAND.name}
           </p>
         </div>
         <div className="flex gap-2">
