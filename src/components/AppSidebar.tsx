@@ -19,8 +19,10 @@ import {
   Calendar,
   LineChart,
   Percent,
-  MessageSquare
+  MessageSquare,
+  SatelliteDish,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -45,6 +47,18 @@ import { SyncIndicator } from "./SyncIndicator";
 import { BRAND } from "@/constants/branding";
 import "@/styles/sidebar-zoom.css";
 
+const WORLD_MONITOR_URL =
+  import.meta.env.VITE_WORLD_MONITOR_URL?.trim() || "http://localhost:3000";
+
+type MarketDataNavItem = {
+  title: string;
+  url: string;
+  icon: LucideIcon;
+  description: string;
+  /** Opens in a new tab (separate app, e.g. WorldMonitor) */
+  externalHref?: string;
+};
+
 // Dashboard - Standalone
 const dashboardItem = {
   title: "Dashboard",
@@ -54,7 +68,7 @@ const dashboardItem = {
 };
 
 // Market Data & News Group
-const marketDataItems = [
+const marketDataItems: MarketDataNavItem[] = [
   {
     title: "Commodity Market",
     url: "/commodity-market",
@@ -72,6 +86,13 @@ const marketDataItems = [
     url: "/market-news",
     icon: Newspaper,
     description: "Latest commodity market news and insights"
+  },
+  {
+    title: "World news",
+    url: "/world-monitor",
+    icon: SatelliteDish,
+    description: "WorldMonitor — global news (separate app, opens in new tab)",
+    externalHref: WORLD_MONITOR_URL,
   },
   {
     title: "Economic Calendar",
@@ -264,15 +285,31 @@ export function AppSidebar() {
             <SidebarMenu>
               {marketDataItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={isActive(item.url)}
+                  <SidebarMenuButton
+                    asChild
+                    isActive={item.externalHref ? false : isActive(item.url)}
                     className="group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all hover:bg-accent hover:text-accent-foreground sidebar-menu-button"
                   >
-                    <Link to={item.url} className="flex items-center gap-3 w-full">
-                      <item.icon className="h-4 w-4 shrink-0 sidebar-icon" />
-                      <span className="flex-1">{item.title}</span>
-                    </Link>
+                    {item.externalHref ? (
+                      <a
+                        href={item.externalHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={item.description}
+                        className="flex w-full items-center gap-3"
+                      >
+                        <item.icon className="h-4 w-4 shrink-0 sidebar-icon" />
+                        <span className="flex-1">{item.title}</span>
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground opacity-70">
+                          ↗
+                        </span>
+                      </a>
+                    ) : (
+                      <Link to={item.url} className="flex w-full items-center gap-3">
+                        <item.icon className="h-4 w-4 shrink-0 sidebar-icon" />
+                        <span className="flex-1">{item.title}</span>
+                      </Link>
+                    )}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

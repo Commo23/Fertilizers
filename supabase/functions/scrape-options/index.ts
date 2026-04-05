@@ -88,6 +88,9 @@ function parseOptionsMarkdown(markdown: string): {
   const expirations: any[] = [];
   const metadata: any = {};
   const lines = markdown.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  // Strike + C/P: decimals and grain dash strikes (e.g. 260-0C, 171-7sP).
+  const strikeCpRe = /^(\d[\d,]*(?:[\.\-]\d+)?\w?)(C|P)$/;
+  const optionsValueRe = /^[-+]?[\d,.]+(?:[\.\-]\d+)?\w?%?s?$/;
 
   // Extract metadata
   for (const line of lines) {
@@ -144,8 +147,7 @@ function parseOptionsMarkdown(markdown: string): {
       continue;
     }
 
-    // Match strike patterns: "1.16750C" or "1.16750P" or "1.19000C"
-    const strikeMatch = lines[i].match(/^(\d[\d,]*(?:\.\d+)?)(C|P)$/);
+    const strikeMatch = lines[i].match(strikeCpRe);
     if (!strikeMatch) continue;
 
     const strike = strikeMatch[1];
@@ -160,10 +162,10 @@ function parseOptionsMarkdown(markdown: string): {
     while (j < lines.length && values.length < 12) {
       const line = lines[j];
       // Stop at next strike pattern or section header
-      if (/^\d[\d,]*(?:\.\d+)?(C|P)$/.test(line)) break;
+      if (strikeCpRe.test(line)) break;
       if (line.startsWith('####')) break;
       // Accept: numbers, signed numbers, N/A, "unch", time patterns, dates
-      if (/^[-+]?[\d,]+\.?\d*s?$/.test(line) || /^N\/A$/i.test(line) || /^unch$/i.test(line) || /^\d+:\d+/.test(line) || /^\d{2}\/\d{2}\/\d{2}$/.test(line)) {
+      if (optionsValueRe.test(line) || /^N\/A$/i.test(line) || /^unch$/i.test(line) || /^\d+:\d+/.test(line) || /^\d{2}\/\d{2}\/\d{2}$/.test(line)) {
         values.push(line.replace(/s$/, '')); // Remove trailing 's' (settlement marker)
       }
       j++;

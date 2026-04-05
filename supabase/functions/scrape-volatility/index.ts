@@ -116,6 +116,11 @@ function parseVolatilityMarkdown(markdown: string): {
   const expirations: Array<{ label: string; value: string }> = [];
   const metadata: { daysToExpiration?: number; expirationDate?: string; pointValue?: string } = {};
   const lines = markdown.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  // Strikes: decimals (260.00), dash grain quotes (260-0, 171-7s), integers (1050); allow thousands commas.
+  const strikeLineRe = /^(\d[\d,]*[\.\-]\d+\w?|\d[\d,]+)$/;
+  // Cell values: same dash/decimal fractional forms as Barchart (e.g. Latest, IV columns).
+  const valueLineRe =
+    /^[-+]?[\d,.]+(?:[\.\-]\d+)?\w?%?s?$/;
 
   // Extract metadata
   for (const line of lines) {
@@ -194,8 +199,7 @@ function parseVolatilityMarkdown(markdown: string): {
       continue;
     }
 
-    // Match strikes: integers (1050), decimals (1.16750), thousands (1,830.00), dash-format (260-0)
-    const strikeMatch = lines[i].match(/^(\d[\d,]*(?:[\.\-]\d+)?\w?)$/);
+    const strikeMatch = lines[i].match(strikeLineRe);
     if (!strikeMatch) continue;
 
     const nextLine = lines[i + 1];
@@ -209,12 +213,12 @@ function parseVolatilityMarkdown(markdown: string): {
     let j = i + 2;
     while (j < lines.length && values.length < 8) {
       const line = lines[j];
-      if (/^\d[\d,]*(?:[\.\-]\d+)?\w?$/.test(line) && lines[j + 1] && (lines[j + 1] === 'Call' || lines[j + 1] === 'Put')) break;
+      if (strikeLineRe.test(line) && lines[j + 1] && (lines[j + 1] === 'Call' || lines[j + 1] === 'Put')) break;
       if (line.startsWith('####')) break;
       if (line === 'false') { j++; continue; }
       if (['Strike', 'Type', 'Latest', 'IV', 'Delta', 'Gamma', 'Theta', 'Vega', 'Links', 'Last Trade', 'IV Skew'].includes(line)) { j++; continue; }
       if (line.startsWith('![')) { j++; continue; }
-      if (/^[-+]?[\d,.]+[-\d]*%?s?$/.test(line) || /^\d{2}\/\d{2}\/\d{2}$/.test(line) || /^\d+:\d+/.test(line) || /^N\/A$/i.test(line) || /^unch$/i.test(line)) {
+      if (valueLineRe.test(line) || /^\d{2}\/\d{2}\/\d{2}$/.test(line) || /^\d+:\d+/.test(line) || /^N\/A$/i.test(line) || /^unch$/i.test(line)) {
         values.push(line.replace(/s$/, ''));
       }
       j++;
