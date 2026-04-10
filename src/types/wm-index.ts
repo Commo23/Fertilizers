@@ -887,6 +887,8 @@ export interface MerchantCargoVessel {
   id: string;
   mmsi: string;
   name: string;
+  /** Flag state inferred from MMSI MID (best-effort). */
+  country?: string;
   lat: number;
   lon: number;
   /** Recent trail points as \([lon, lat]\) pairs. */

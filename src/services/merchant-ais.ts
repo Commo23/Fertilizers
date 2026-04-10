@@ -1,4 +1,5 @@
 import type { MerchantCargoVessel } from "@/types";
+import { mmsiToCountry } from "@/utils/mmsi-mid";
 
 const MAX_VESSELS = 8000;
 const FLUSH_MS = 450;
@@ -99,6 +100,7 @@ function parseEnvelope(
     id: mmsi,
     mmsi,
     name,
+    country: mmsiToCountry(mmsi),
     lat,
     lon,
     sog,

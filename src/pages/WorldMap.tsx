@@ -31,6 +31,11 @@ export default function WorldMap() {
   const [cargoVessels, setCargoVessels] = useState<MerchantCargoVessel[]>([]);
   const [cargoQuery, setCargoQuery] = useState("");
   const [cargoResultsOpen, setCargoResultsOpen] = useState(false);
+  const [cargoTypeFilter, setCargoTypeFilter] = useState<
+    "all" | "cargo" | "tanker" | "passenger" | "fishing" | "special" | "other"
+  >("all");
+  const [cargoCountryFilter, setCargoCountryFilter] = useState<string>("all");
+  const [cargoDestinationFilter, setCargoDestinationFilter] = useState<string>("");
 
   useEffect(() => {
     const host = hostRef.current;
@@ -104,7 +109,6 @@ export default function WorldMap() {
       if (map.getState().layers.cargoShips) {
         disconnect = connectMerchantAisStream((vessels) => {
           setCargoVessels(vessels);
-          mapRef.current?.setMerchantCargoVessels(vessels);
         });
       } else {
         setCargoVessels([]);
@@ -124,6 +128,57 @@ export default function WorldMap() {
     };
   }, [mapReady]);
 
+  const filteredCargoVessels = useMemo(() => {
+    const wantType = cargoTypeFilter;
+    const wantCountry = cargoCountryFilter.trim();
+    const wantDest = cargoDestinationFilter.trim().toLowerCase();
+
+    const typeOk = (v: MerchantCargoVessel) => {
+      if (wantType === "all") return true;
+      const st = (v.shipTypeLabel ?? "").toLowerCase();
+      if (wantType === "cargo") return st.includes("cargo");
+      if (wantType === "tanker") return st.includes("tanker");
+      if (wantType === "passenger") return st.includes("passenger");
+      if (wantType === "fishing") return st.includes("fishing");
+      if (wantType === "special") return st.includes("special");
+      if (wantType === "other") return !st;
+      return true;
+    };
+
+    const countryOk = (v: MerchantCargoVessel) => {
+      if (!wantCountry || wantCountry === "all") return true;
+      return (v.country ?? "").toLowerCase() === wantCountry.toLowerCase();
+    };
+
+    const destOk = (v: MerchantCargoVessel) => {
+      if (!wantDest) return true;
+      return (v.destination ?? "").toLowerCase().includes(wantDest);
+    };
+
+    return cargoVessels.filter((v) => typeOk(v) && countryOk(v) && destOk(v));
+  }, [cargoCountryFilter, cargoDestinationFilter, cargoTypeFilter, cargoVessels]);
+
+  // Apply filtered vessels to the map renderer.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map) return;
+    if (!map.getState().layers.cargoShips) return;
+    map.setMerchantCargoVessels(filteredCargoVessels);
+  }, [filteredCargoVessels, mapReady]);
+
+  const cargoCountries = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const v of cargoVessels) {
+      const c = (v.country ?? "").trim();
+      if (!c) continue;
+      counts.set(c, (counts.get(c) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 40)
+      .map(([country]) => country);
+  }, [cargoVessels]);
+
   const cargoResults = useMemo(() => {
     const q = cargoQuery.trim().toLowerCase();
     if (!q) return [] as MerchantCargoVessel[];
@@ -132,15 +187,17 @@ export default function WorldMap() {
       const mmsi = (v.mmsi ?? "").toLowerCase();
       const dest = (v.destination ?? "").toLowerCase();
       const type = (v.shipTypeLabel ?? "").toLowerCase();
+      const country = (v.country ?? "").toLowerCase();
       return (
         name.includes(q) ||
         mmsi.includes(q) ||
         dest.includes(q) ||
-        type.includes(q)
+        type.includes(q) ||
+        country.includes(q)
       );
     };
-    return cargoVessels.filter(matches).slice(0, 12);
-  }, [cargoQuery, cargoVessels]);
+    return filteredCargoVessels.filter(matches).slice(0, 12);
+  }, [cargoQuery, filteredCargoVessels]);
 
   const focusCargo = useCallback((v: MerchantCargoVessel) => {
     setCargoResultsOpen(false);
@@ -241,11 +298,53 @@ export default function WorldMap() {
                 )}
               />
 
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <select
+                  className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+                  value={cargoTypeFilter}
+                  onChange={(e) => setCargoTypeFilter(e.target.value as typeof cargoTypeFilter)}
+                  disabled={!mapReady || !mapRef.current?.getState().layers.cargoShips}
+                  title="Filter by vessel type"
+                >
+                  <option value="all">All types</option>
+                  <option value="cargo">Cargo</option>
+                  <option value="tanker">Tanker</option>
+                  <option value="passenger">Passenger</option>
+                  <option value="fishing">Fishing</option>
+                  <option value="special">Special</option>
+                  <option value="other">Other/unknown</option>
+                </select>
+
+                <select
+                  className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+                  value={cargoCountryFilter}
+                  onChange={(e) => setCargoCountryFilter(e.target.value)}
+                  disabled={!mapReady || !mapRef.current?.getState().layers.cargoShips}
+                  title="Filter by flag state (MMSI MID)"
+                >
+                  <option value="all">All countries</option>
+                  {cargoCountries.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+
+                <input
+                  className="h-8 flex-1 min-w-[180px] rounded-md border border-border bg-card px-2.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/30"
+                  value={cargoDestinationFilter}
+                  onChange={(e) => setCargoDestinationFilter(e.target.value)}
+                  disabled={!mapReady || !mapRef.current?.getState().layers.cargoShips}
+                  placeholder="Destination filter…"
+                  title="Filter by destination (ShipStaticData)"
+                />
+              </div>
+
               {cargoResultsOpen && cargoQuery.trim() && (
                 <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-md border border-border bg-card shadow-lg">
                   {cargoResults.length === 0 ? (
                     <div className="px-2.5 py-2 text-xs text-muted-foreground">
-                      Aucun cargo trouvé (dans {cargoVessels.length} navires en cache).
+                      Aucun cargo trouvé (dans {filteredCargoVessels.length} navires après filtres).
                     </div>
                   ) : (
                     <div className="max-h-[260px] overflow-auto">
@@ -268,7 +367,11 @@ export default function WorldMap() {
                           </div>
                           <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                             <div className="truncate">
-                              {v.destination ? `→ ${v.destination}` : `MMSI ${v.mmsi}`}
+                              {v.destination
+                                ? `→ ${v.destination}`
+                                : v.country
+                                  ? v.country
+                                  : `MMSI ${v.mmsi}`}
                             </div>
                             <div className="shrink-0">
                               {v.lat.toFixed(2)}, {v.lon.toFixed(2)}
