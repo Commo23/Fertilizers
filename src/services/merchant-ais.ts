@@ -118,6 +118,8 @@ function trimStore(map: Map<string, MerchantCargoVessel>): void {
 }
 
 export function getMerchantAisWebSocketUrl(): string {
+  const configured = String(import.meta.env.VITE_AIS_RELAY_URL ?? "").trim();
+  if (configured) return configured;
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${proto}//${window.location.host}/api/ais-relay`;
 }
