@@ -17,7 +17,6 @@ import {
   AlertTriangle,
   BarChart3,
   Globe,
-  Target,
   Activity,
   ArrowUpRight,
   ArrowDownRight,
@@ -505,60 +504,6 @@ const Dashboard = () => {
             ))}
             <Button variant="outline" className="w-full" size="sm">
               View All Alerts
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="hover:shadow-md transition-shadow cursor-pointer">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Target className="h-5 w-5 text-primary" />
-              Strategy Builder
-            </CardTitle>
-            <CardDescription>
-              Build and test new hedging strategies
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button className="w-full">
-              Create New Strategy
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow cursor-pointer">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <BarChart3 className="h-5 w-5 text-primary" />
-              Risk Analysis
-            </CardTitle>
-            <CardDescription>
-              Run scenario analysis and stress tests
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" className="w-full">
-              Run Analysis
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow cursor-pointer">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Activity className="h-5 w-5 text-primary" />
-              Live Positions
-            </CardTitle>
-            <CardDescription>
-              Monitor real-time position changes
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" className="w-full">
-              View Positions
             </Button>
           </CardContent>
         </Card>

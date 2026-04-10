@@ -1,0 +1,326 @@
+/* WorldMonitor map: variables + panneau « Couches » + contrôles (copie ciblée de main.css WM) */
+.world-map-host {
+  position: relative;
+  width: 100%;
+  min-height: calc(100vh - 10rem);
+  height: calc(100vh - 10rem);
+  overflow: hidden;
+  border-radius: 0.375rem;
+
+  /* Aligné sur WM : --bg, --border, --green, etc. */
+  --bg: #111111;
+  --border: rgba(255, 255, 255, 0.12);
+  --green: #44ff88;
+  --text: rgba(255, 255, 255, 0.92);
+  --text-dim: rgba(255, 255, 255, 0.55);
+  --yellow: #fbbf24;
+}
+
+.world-map-host .maplibregl-map,
+.world-map-host .deckgl-map,
+.world-map-host svg {
+  border-radius: inherit;
+}
+
+/* Canvas plein écran sous les overlays */
+.world-map-host.globe-mode,
+.world-map-host.deckgl-mode,
+.world-map-host.svg-mode {
+  isolation: isolate;
+}
+
+/* Globe BETA */
+.globe-beta-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #00e5ff;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.4);
+  border-radius: 4px;
+  pointer-events: none;
+  align-self: flex-end;
+}
+
+/* Zoom (+/-/home) */
+.map-controls.deckgl-controls,
+.deckgl-controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1000;
+  pointer-events: auto;
+}
+
+.deckgl-controls .zoom-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.deckgl-controls .map-btn {
+  width: 32px;
+  height: 32px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  pointer-events: auto;
+  border-radius: 4px;
+}
+
+.deckgl-controls .map-btn:hover {
+  border-color: var(--green);
+}
+
+/* Panneau COUCHES (DeckGL + globe : .deckgl-layer-toggles) */
+.deckgl-layer-toggles,
+.layer-toggles.deckgl-layer-toggles {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  top: auto;
+  z-index: 1000;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  max-width: 280px;
+  max-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-wrap: nowrap;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+.deckgl-layer-toggles .toggle-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
+
+.deckgl-layer-toggles .toggle-collapse {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.deckgl-layer-toggles .toggle-list {
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.deckgl-layer-toggles .layer-search {
+  width: calc(100% - 16px);
+  margin: 4px 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: inherit;
+  font-size: 11px;
+  font-family: inherit;
+  outline: none;
+}
+
+.deckgl-layer-toggles .layer-search::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.deckgl-layer-toggles .layer-search:focus {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.deckgl-layer-toggles .layer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  background: rgba(0, 0, 0, 0.2);
+  transition: background 0.15s ease, border-color 0.15s ease;
+  position: relative;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.deckgl-layer-toggles .layer-toggle:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.deckgl-layer-toggles .layer-toggle input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  border: 2px solid var(--border);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  margin: 0;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.deckgl-layer-toggles .layer-toggle input[type="checkbox"]:checked {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.deckgl-layer-toggles .layer-toggle input[type="checkbox"]:checked::after {
+  content: "✓";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--bg);
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.deckgl-layer-toggles .toggle-icon {
+  font-size: 12px;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  overflow: hidden;
+}
+
+.deckgl-layer-toggles .toggle-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Mode SVG (mobile) : pastilles simplifiées */
+.layer-toggles:not(.deckgl-layer-toggles) {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  z-index: 1000;
+  max-width: min(300px, 92%);
+}
+
+.layer-toggles:not(.deckgl-layer-toggles) .layer-toggle {
+  padding: 3px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 9px;
+  cursor: pointer;
+  text-transform: uppercase;
+  border-radius: 3px;
+}
+
+.layer-toggles:not(.deckgl-layer-toggles) .layer-toggle.active {
+  color: var(--green);
+  border-color: var(--green);
+}
+
+@keyframes layer-loading {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Barre 2D / 3D + plein écran (page WorldMap) */
+.world-map-section--fullscreen {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  padding: 12px;
+  background: hsl(var(--background));
+}
+
+.world-map-section--fullscreen .world-map-host--flex-fill {
+  flex: 1;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+}
+
+/* Hide author badge in fullscreen map mode */
+.world-map-section--fullscreen .map-author-badge {
+  display: none !important;
+}
+
+/* Merchant cargo AIS (SVG fallback markers) */
+.merchant-cargo-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 6;
+}
+.merchant-cargo-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+.merchant-cargo-label {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 0 4px #000;
+  white-space: nowrap;
+  pointer-events: none;
+}

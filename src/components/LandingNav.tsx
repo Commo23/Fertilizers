@@ -5,9 +5,9 @@ import { BRAND } from "@/constants/branding";
 
 const navLinks: { name: string; href: string; external?: boolean }[] = [
   { name: "Markets", href: "/commodity-market", external: true },
-  { name: "Pricers", href: "/pricers", external: true },
+  { name: "Terminal", href: "/ticker-peek-pro", external: true },
   { name: "Platform", href: "#risk-architect" },
-  { name: "Strategy", href: "/strategy-builder", external: true },
+  { name: "Dashboard", href: "/dashboard", external: true },
   { name: "FAQ", href: "#faq" },
 ];
 

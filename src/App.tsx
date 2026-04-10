@@ -16,22 +16,16 @@ import "./utils/cleanupLocalStorage";
 
 // Import pages
 import Dashboard from "./pages/Dashboard";
-import Exposures from "./pages/Exposures";
-import HedgingInstruments from "./pages/HedgingInstruments";
-import RiskAnalysis from "./pages/RiskAnalysis";
-import PositionMonitor from "./pages/PositionMonitor";
-import Index from "./pages/Index";
-import StrategyBuilder from "./pages/StrategyBuilder";
-import Pricers from "./pages/Pricers";
-import Reports from "./pages/Reports";
 import CommodityMarket from "./pages/CommodityMarket";
 import MarketNews from "./pages/MarketNews";
+import CommodityNews from "./pages/CommodityNews";
+import LiveNews from "./pages/LiveNews";
+import WorldMap from "./pages/WorldMap";
 import EconomicCalendar from "./pages/EconomicCalendar";
 import AdvancedChart from "./pages/AdvancedChart";
 import UserManagement from "./pages/UserManagement";
 import Settings from "./pages/Settings";
 import DatabaseSync from "./pages/DatabaseSync";
-import RegressionAnalysis from "./pages/RegressionAnalysis";
 import RateExplorer from "./pages/RateExplorer";
 import HedgeHelper from "./pages/HedgeHelper";
 import TickerPeekPro from "./pages/TickerPeekPro";
@@ -50,13 +44,13 @@ const App = () => {
   // Initialiser les hooks de scroll fluide
   useSmoothScroll();
   useMomentumScroll();
-  
+
   // Initialiser le zoom
   useZoom();
-  
+
   // Initialiser la synchronisation automatique
   useAutoSync();
-  
+
   // Initialiser la surveillance du localStorage
   LocalStorageWatcher.getInstance();
 
@@ -70,42 +64,33 @@ const App = () => {
             <ThemeToggle />
           </div>
           <Router>
-          <Routes>
-            {/* Landing Page - Page par défaut */}
-            <Route path="/" element={<LandingPage />} />
-            
-            {/* Authentication */}
-            <Route path="/login" element={<SupabaseLogin />} />
-            <Route path="/supabase-login" element={<SupabaseLogin />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            
-            {/* Commodity Risk Management Routes */}
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/exposures" element={<ProtectedRoute><Exposures /></ProtectedRoute>} />
-            <Route path="/hedging" element={<ProtectedRoute><HedgingInstruments /></ProtectedRoute>} />
-            <Route path="/risk-analysis" element={<ProtectedRoute><RiskAnalysis /></ProtectedRoute>} />
-            
-            {/* Strategy Builder and Advanced Features */}
-            <Route path="/strategy-builder" element={<ProtectedRoute><StrategyBuilder /></ProtectedRoute>} />
-            <Route path="/pricers" element={<ProtectedRoute><Pricers /></ProtectedRoute>} />
-            <Route path="/positions" element={<ProtectedRoute><PositionMonitor /></ProtectedRoute>} />
-            <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-            <Route path="/commodity-market" element={<ProtectedRoute><CommodityMarket /></ProtectedRoute>} />
-            <Route path="/market-news" element={<ProtectedRoute><MarketNews /></ProtectedRoute>} />
-            <Route path="/economic-calendar" element={<ProtectedRoute><EconomicCalendar /></ProtectedRoute>} />
-            <Route path="/advanced-chart" element={<ProtectedRoute><AdvancedChart /></ProtectedRoute>} />
-            <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
-            <Route path="/database-sync" element={<ProtectedRoute><DatabaseSync /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-            <Route path="/regression-analysis" element={<ProtectedRoute><RegressionAnalysis /></ProtectedRoute>} />
-            <Route path="/rate-explorer" element={<ProtectedRoute><RateExplorer /></ProtectedRoute>} />
-            <Route path="/hedge-helper" element={<ProtectedRoute><HedgeHelper /></ProtectedRoute>} />
-            <Route path="/ticker-peek-pro" element={<ProtectedRoute><TickerPeekPro /></ProtectedRoute>} />
-            
-            {/* Legacy routes - redirect /saved to /reports */}
-            <Route path="/saved" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+            <Routes>
+              {/* Landing Page - Page par défaut */}
+              <Route path="/" element={<LandingPage />} />
+
+              {/* Authentication */}
+              <Route path="/login" element={<SupabaseLogin />} />
+              <Route path="/supabase-login" element={<SupabaseLogin />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/commodity-market" element={<ProtectedRoute><CommodityMarket /></ProtectedRoute>} />
+              <Route path="/market-news" element={<ProtectedRoute><MarketNews /></ProtectedRoute>} />
+              <Route path="/commodity-news" element={<ProtectedRoute><CommodityNews /></ProtectedRoute>} />
+              <Route path="/live-news" element={<ProtectedRoute><LiveNews /></ProtectedRoute>} />
+              <Route path="/world-map" element={<ProtectedRoute><WorldMap /></ProtectedRoute>} />
+              <Route path="/economic-calendar" element={<ProtectedRoute><EconomicCalendar /></ProtectedRoute>} />
+              <Route path="/advanced-chart" element={<ProtectedRoute><AdvancedChart /></ProtectedRoute>} />
+              <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
+              <Route path="/database-sync" element={<ProtectedRoute><DatabaseSync /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/rate-explorer" element={<ProtectedRoute><RateExplorer /></ProtectedRoute>} />
+              <Route path="/hedge-helper" element={<ProtectedRoute><HedgeHelper /></ProtectedRoute>} />
+              <Route path="/ticker-peek-pro" element={<ProtectedRoute><TickerPeekPro /></ProtectedRoute>} />
+
+              <Route path="/saved" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
           </Router>
         </TooltipProvider>
       </ThemeProvider>

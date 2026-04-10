@@ -1,4 +1,4 @@
-import { StressTestScenario, StrategyComponent, Result } from '../pages/Index';
+import type { StressTestScenario, StrategyComponent, Result } from '@/types/strategyBuilder';
 
 export interface SavedScenario {
   id: string;

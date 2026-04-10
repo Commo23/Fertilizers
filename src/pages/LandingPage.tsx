@@ -212,10 +212,10 @@ const LandingPage = () => {
               </button>
               <button
                 type="button"
-                onClick={() => navigate("/pricers")}
+                onClick={() => navigate("/ticker-peek-pro")}
                 className="landing-btn-industrial bg-[#2e3545] px-8 py-4 font-headline font-bold uppercase tracking-widest text-white transition-all hover:bg-[#323949] md:px-10"
               >
-                Open pricers
+                Ticker Peek Pro
               </button>
             </div>
           </div>
@@ -267,7 +267,7 @@ const LandingPage = () => {
                   title: "Oil & energy",
                   desc: "Crude, distillates, and refined hedges with Black-76 and barrier models tied to your curves.",
                   img: TERMINAL_MEDIA.oilEnergy,
-                  path: "/pricers",
+                  path: "/ticker-peek-pro",
                 },
                 {
                   sector: "Sector 02",
@@ -280,9 +280,9 @@ const LandingPage = () => {
                 {
                   sector: "Sector 03",
                   title: "Agriculture",
-                  desc: "Grains and softs: strategy builder, stress paths, and hedge ratio views before execution.",
+                  desc: "Grains and softs: curves, stress paths, and market views before execution.",
                   img: TERMINAL_MEDIA.agriculture,
-                  path: "/strategy-builder",
+                  path: "/dashboard",
                   delay: "300ms",
                 },
               ].map((v) => (
@@ -332,10 +332,10 @@ const LandingPage = () => {
               </div>
               <button
                 type="button"
-                onClick={() => navigate("/strategy-builder")}
+                onClick={() => navigate("/dashboard")}
                 className="landing-btn-industrial whitespace-nowrap border border-[#424a35]/30 bg-[#2e3545] px-8 py-3 font-headline text-sm font-bold uppercase tracking-widest text-white transition-all hover:bg-[#323949]"
               >
-                Strategy builder
+                Dashboard
               </button>
             </div>
 
@@ -433,9 +433,9 @@ const LandingPage = () => {
             </div>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
               {[
-                { title: "Pricers", src: LANDING_SCREENSHOTS.pricers, path: "/pricers" },
-                { title: "Dashboard & exposures", src: LANDING_SCREENSHOTS.exposures, path: "/dashboard" },
-                { title: "Strategy builder", src: LANDING_SCREENSHOTS.strategyBuilder, path: "/strategy-builder" },
+                { title: "Ticker Peek Pro", src: LANDING_SCREENSHOTS.pricers, path: "/ticker-peek-pro" },
+                { title: "Dashboard", src: LANDING_SCREENSHOTS.exposures, path: "/dashboard" },
+                { title: "Commodity market", src: LANDING_SCREENSHOTS.strategyBuilder, path: "/commodity-market" },
               ].map((s) => (
                 <button
                   key={s.title}
@@ -553,18 +553,13 @@ const LandingPage = () => {
             <h5 className="mb-8 font-headline text-[10px] uppercase tracking-widest text-[#aef833]">Platform</h5>
             <ul className="space-y-4">
               <li>
-                <button type="button" onClick={() => navigate("/pricers")} className="text-[10px] uppercase tracking-widest text-[#424a35] hover:text-[#aef833]">
-                  Pricers
+                <button type="button" onClick={() => navigate("/ticker-peek-pro")} className="text-[10px] uppercase tracking-widest text-[#424a35] hover:text-[#aef833]">
+                  Ticker Peek Pro
                 </button>
               </li>
               <li>
                 <button type="button" onClick={() => navigate("/dashboard")} className="text-[10px] uppercase tracking-widest text-[#424a35] hover:text-[#aef833]">
-                  Dashboard & exposures
-                </button>
-              </li>
-              <li>
-                <button type="button" onClick={() => navigate("/strategy-builder")} className="text-[10px] uppercase tracking-widest text-[#424a35] hover:text-[#aef833]">
-                  Strategy builder
+                  Dashboard
                 </button>
               </li>
               <li>

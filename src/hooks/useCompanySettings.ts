@@ -14,7 +14,6 @@ interface AppSettings {
   ui: Record<string, unknown>;
   notifications: Record<string, unknown>;
   data: Record<string, unknown>;
-  commodityExposures: Record<string, unknown>;
   hedgingInstruments: Record<string, unknown>;
 }
 
@@ -30,7 +29,6 @@ const defaultSettings: AppSettings = {
   ui: {},
   notifications: {},
   data: {},
-  commodityExposures: {},
   hedgingInstruments: {}
 };
 

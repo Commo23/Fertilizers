@@ -1,4 +1,4 @@
-import { OptionImpliedVolatility } from '../pages/Index';
+import type { OptionImpliedVolatility } from '@/types/strategyBuilder';
 
 export interface CustomPeriod {
   maturityDate: string;

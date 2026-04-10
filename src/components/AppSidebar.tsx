@@ -1,26 +1,20 @@
 import React, { useEffect, useState } from "react";
 import {
   BarChart3,
-  DollarSign,
   Globe,
   Home,
   Settings,
-  TrendingUp,
-  FileText,
-  Shield,
-  Target,
   Users,
-  Briefcase,
-  Activity,
-  Calculator,
-  Zap,
   Database,
   Newspaper,
+  Rss,
+  Radio,
   Calendar,
   LineChart,
   Percent,
   MessageSquare,
   SatelliteDish,
+  Map,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -38,7 +32,6 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useCompanySettings, getCompanyNameSync, companySettingsEmitter } from "@/hooks/useCompanySettings";
 import { ScrollArea } from "@/components/ui/ScrollArea";
 import { useAuth } from "@/hooks/useAuth";
@@ -88,6 +81,24 @@ const marketDataItems: MarketDataNavItem[] = [
     description: "Latest commodity market news and insights"
   },
   {
+    title: "Commodity News",
+    url: "/commodity-news",
+    icon: Rss,
+    description: "RSS: metals, energy, mining, supply chain, regulation"
+  },
+  {
+    title: "Live news",
+    url: "/live-news",
+    icon: Radio,
+    description: "TV news channels (24/7 streams)"
+  },
+  {
+    title: "Situation mondiale",
+    url: "/world-map",
+    icon: Map,
+    description: "Carte mondiale (WorldMonitor-style): couches, DeckGL / globe"
+  },
+  {
     title: "World news",
     url: "/world-monitor",
     icon: SatelliteDish,
@@ -117,66 +128,6 @@ const marketDataItems: MarketDataNavItem[] = [
     url: "/ticker-peek-pro",
     icon: BarChart3,
     description: "Commodities terminal: futures, options, volatility & Vol Surface 3D (Barchart)"
-  }
-];
-
-// Risk Management Group
-const riskManagementItems = [
-  {
-    title: "Commodity Exposures",
-    url: "/exposures",
-    icon: DollarSign,
-    description: "Manage commodity exposures and positions",
-    badge: "Active"
-  },
-  {
-    title: "Hedging Instruments",
-    url: "/hedging",
-    icon: Shield,
-    description: "Forwards, options, swaps management"
-  },
-  {
-    title: "Strategy Builder",
-    url: "/strategy-builder",
-    icon: Target,
-    description: "Build and test hedging strategies"
-  },
-  {
-    title: "Pricers",
-    url: "/pricers",
-    icon: Calculator,
-    description: "Advanced pricing for options, swaps and forwards"
-  }
-];
-
-// Analysis & Monitoring Group
-const analysisItems = [
-  {
-    title: "Regression Analysis",
-    url: "/regression-analysis",
-    icon: TrendingUp,
-    description: "Advanced regression analysis and data visualization"
-  },
-  {
-    title: "Risk Analysis",
-    url: "/risk-analysis",
-    icon: BarChart3,
-    description: "Scenario analysis and stress testing"
-  },
-  {
-    title: "Position Monitor",
-    url: "/positions",
-    icon: Activity,
-    description: "Real-time position monitoring"
-  }
-];
-
-const reportingItems = [
-  {
-    title: "Reports",
-    url: "/reports",
-    icon: FileText,
-    description: "Generate custom reports"
   }
 ];
 
@@ -310,92 +261,6 @@ export function AppSidebar() {
                         <span className="flex-1">{item.title}</span>
                       </Link>
                     )}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarSeparator className="my-4" />
-
-        {/* Risk Management */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-2 sidebar-group-label">
-            Risk Management
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {riskManagementItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={isActive(item.url)}
-                    className="group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all hover:bg-accent hover:text-accent-foreground sidebar-menu-button"
-                  >
-                    <Link to={item.url} className="flex items-center gap-3 w-full">
-                      <item.icon className="h-4 w-4 shrink-0 sidebar-icon" />
-                      <span className="flex-1">{item.title}</span>
-                      {item.badge && (
-                        <Badge variant="secondary" className="text-xs h-5 sidebar-badge">
-                          {item.badge}
-                        </Badge>
-                      )}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarSeparator className="my-4" />
-
-        {/* Analysis & Monitoring */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-2 sidebar-group-label">
-            Analysis & Monitoring
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {analysisItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={isActive(item.url)}
-                    className="group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all hover:bg-accent hover:text-accent-foreground sidebar-menu-button"
-                  >
-                    <Link to={item.url} className="flex items-center gap-3 w-full">
-                      <item.icon className="h-4 w-4 shrink-0 sidebar-icon" />
-                      <span className="flex-1">{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarSeparator className="my-4" />
-
-        {/* Reporting */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-2 sidebar-group-label">
-            Reporting
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {reportingItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={isActive(item.url)}
-                    className="group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all hover:bg-accent hover:text-accent-foreground sidebar-menu-button"
-                  >
-                    <Link to={item.url} className="flex items-center gap-3 w-full">
-                      <item.icon className="h-4 w-4 shrink-0 sidebar-icon" />
-                      <span className="flex-1">{item.title}</span>
-                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

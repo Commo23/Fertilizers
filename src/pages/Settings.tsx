@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -135,18 +135,6 @@ interface AppSettings {
     selectedDomains: ('metals' | 'agricultural' | 'energy' | 'freight' | 'bunker')[];
   };
 
-  // Commodity Exposures settings
-  commodityExposures: {
-    autoDetection: boolean;
-    defaultMaturity: string;
-    riskClassification: string;
-    consolidationLevel: string;
-    exposureThreshold: number;
-    reportingCurrency: string;
-    includePendingTransactions: boolean;
-    maturityBuckets: string[];
-  };
-
   // Hedging Instruments settings
   hedgingInstruments: {
     defaultInstrumentType: string;
@@ -245,16 +233,6 @@ const Settings = () => {
     domains: {
       selectedDomains: ['metals', 'agricultural', 'energy', 'freight', 'bunker'] // All domains selected by default
     },
-    commodityExposures: {
-      autoDetection: true,
-      defaultMaturity: "1M",
-      riskClassification: "medium",
-      consolidationLevel: "entity",
-      exposureThreshold: 100000,
-      reportingCurrency: "USD",
-      includePendingTransactions: true,
-      maturityBuckets: ["1W", "1M", "3M", "6M", "1Y", "2Y+"]
-    },
     hedgingInstruments: {
       defaultInstrumentType: "forward",
       autoHedgeRatio: 80,
@@ -336,7 +314,7 @@ const Settings = () => {
     if (!name) return;
     const id = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || `counterparty-${Date.now()}`;
     if (hedgingCounterparties.some((c) => c.id === id)) {
-      toast({ title: "Existe déjà", description: "Une contrepartie avec ce nom existe déjà.", variant: "destructive" });
+      toast({ title: "Existe dÃ©jÃ ", description: "Une contrepartie avec ce nom existe dÃ©jÃ .", variant: "destructive" });
       return;
     }
     saveHedgingCounterparties([...hedgingCounterparties, { id, name }]);
@@ -346,7 +324,7 @@ const Settings = () => {
   const removeHedgingPortfolio = (id: string) => {
     const name = hedgingPortfolios.find((p) => p.id === id)?.name;
     saveHedgingPortfolios(hedgingPortfolios.filter((p) => p.id !== id));
-    toast({ title: "Portefeuille supprimé", description: name ? `"${name}" a été supprimé.` : undefined });
+    toast({ title: "Portefeuille supprimÃ©", description: name ? `"${name}" a Ã©tÃ© supprimÃ©.` : undefined });
   };
   const removeHedgingCounterparty = (id: string) => {
     const name = hedgingCounterparties.find((c) => c.id === id)?.name;
@@ -354,7 +332,7 @@ const Settings = () => {
     toast({ title: "Counterparty removed", description: name ? `"${name}" has been removed.` : undefined });
   };
   
-  // 🌐 Bank Rates from World Government Bonds
+  // ðŸŒ Bank Rates from World Government Bonds
   const [isLoadingBankRates, setIsLoadingBankRates] = useState(false);
   const [bondDataLastUpdate, setBondDataLastUpdate] = useState<string | null>(() => {
     // Load last update from localStorage
@@ -374,7 +352,7 @@ const Settings = () => {
     NZD: 'new-zealand',
   };
   
-  // 🌐 Check if bond data is fresh (less than 1 hour old)
+  // ðŸŒ Check if bond data is fresh (less than 1 hour old)
   const isBondDataFresh = (): boolean => {
     if (!bondDataLastUpdate) return false;
     const lastUpdate = new Date(bondDataLastUpdate);
@@ -383,7 +361,7 @@ const Settings = () => {
     return hoursDiff < 1; // Consider fresh if less than 1 hour old
   };
   
-  // 🌐 Fetch bank rates from World Government Bonds (with automatic scraping if needed)
+  // ðŸŒ Fetch bank rates from World Government Bonds (with automatic scraping if needed)
   const fetchBankRatesFromBonds = async (forceRefresh = false) => {
     setIsLoadingBankRates(true);
     try {
@@ -391,14 +369,14 @@ const Settings = () => {
       const needsRefresh = forceRefresh || !isBondDataFresh();
       
       if (needsRefresh) {
-        console.log('🔄 Données obsolètes ou manquantes, lancement du scraping...');
+        console.log('ðŸ”„ DonnÃ©es obsolÃ¨tes ou manquantes, lancement du scraping...');
       }
       
       const response = await fetchAllCountries();
       
       if (!response.success || !response.data) {
         // If no data, try to trigger scraping by calling the API again
-        console.log('⚠️ Aucune donnée disponible, tentative de scraping...');
+        console.log('âš ï¸ Aucune donnÃ©e disponible, tentative de scraping...');
         
         // Wait a bit and retry (scraping might be in progress)
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -406,8 +384,8 @@ const Settings = () => {
         
         if (!retryResponse.success || !retryResponse.data) {
           toast({
-            title: "Données non disponibles",
-            description: "Les données ne sont pas disponibles. Le scraping est peut-être en cours. Réessayez dans quelques instants.",
+            title: "DonnÃ©es non disponibles",
+            description: "Les donnÃ©es ne sont pas disponibles. Le scraping est peut-Ãªtre en cours. RÃ©essayez dans quelques instants.",
             variant: "destructive",
           });
           return;
@@ -427,7 +405,7 @@ const Settings = () => {
           if (countryData && countryData.bankRate !== null && countryData.bankRate !== undefined) {
             newRates[currency] = countryData.bankRate;
             updatedCount++;
-            console.log(`✅ ${currency}: ${countryData.country} Bank Rate = ${countryData.bankRate}%`);
+            console.log(`âœ… ${currency}: ${countryData.country} Bank Rate = ${countryData.bankRate}%`);
           }
         });
         
@@ -457,10 +435,10 @@ const Settings = () => {
         if (countryData && countryData.bankRate !== null && countryData.bankRate !== undefined) {
           newRates[currency] = countryData.bankRate;
           updatedCount++;
-          console.log(`✅ ${currency}: ${countryData.country} Bank Rate = ${countryData.bankRate}%`);
+          console.log(`âœ… ${currency}: ${countryData.country} Bank Rate = ${countryData.bankRate}%`);
         } else {
           missingRates.push(currency);
-          console.log(`⚠️ ${currency}: Bank Rate non trouvé pour ${countrySlug}`);
+          console.log(`âš ï¸ ${currency}: Bank Rate non trouvÃ© pour ${countrySlug}`);
         }
       });
       
@@ -470,22 +448,22 @@ const Settings = () => {
         setBondDataLastUpdate(updateTime);
         localStorage.setItem('bondDataLastUpdate', updateTime);
         
-        // 🌐 Emit event to notify other components of rate update
+        // ðŸŒ Emit event to notify other components of rate update
         window.dispatchEvent(new CustomEvent('settingsUpdated'));
         
         if (missingRates.length > 0) {
-          console.log(`⚠️ Taux manquants pour: ${missingRates.join(', ')}`);
+          console.log(`âš ï¸ Taux manquants pour: ${missingRates.join(', ')}`);
         }
       } else if (missingRates.length > 0) {
         // All rates are missing, data might be stale
-        console.log('⚠️ Tous les taux sont manquants, les données sont peut-être obsolètes');
+        console.log('âš ï¸ Tous les taux sont manquants, les donnÃ©es sont peut-Ãªtre obsolÃ¨tes');
       }
       
     } catch (error) {
-      console.error('Erreur lors de la récupération des taux:', error);
+      console.error('Erreur lors de la rÃ©cupÃ©ration des taux:', error);
       toast({
         title: "Erreur",
-        description: "Une erreur s'est produite lors de la récupération des taux.",
+        description: "Une erreur s'est produite lors de la rÃ©cupÃ©ration des taux.",
         variant: "destructive",
       });
     } finally {
@@ -500,7 +478,7 @@ const Settings = () => {
     const savedSettings = localStorage.getItem('fxRiskManagerSettings');
     if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
-          // Vérifier que les données parsées sont valides
+          // VÃ©rifier que les donnÃ©es parsÃ©es sont valides
           if (parsed && typeof parsed === 'object' && parsed.company) {
             setSettings(prev => ({
               ...prev,
@@ -534,10 +512,10 @@ const Settings = () => {
         }
       } catch (error) {
         console.error('Error loading saved settings:', error);
-        // En cas d'erreur, garder les paramètres par défaut
+        // En cas d'erreur, garder les paramÃ¨tres par dÃ©faut
         toast({
           title: "Erreur de chargement",
-          description: "Impossible de charger les paramètres sauvegardés. Paramètres par défaut utilisés.",
+          description: "Impossible de charger les paramÃ¨tres sauvegardÃ©s. ParamÃ¨tres par dÃ©faut utilisÃ©s.",
           variant: "destructive",
         });
       }
@@ -546,7 +524,7 @@ const Settings = () => {
     loadSettings();
   }, []);
   
-  // 🌐 Auto-sync bank rates on mount and when in fixed mode
+  // ðŸŒ Auto-sync bank rates on mount and when in fixed mode
   useEffect(() => {
     // Only auto-sync if in fixed rate mode
     if (settings.pricing?.interestRateMode === 'fixed') {
@@ -554,15 +532,15 @@ const Settings = () => {
       const isFresh = lastUpdate ? (Date.now() - new Date(lastUpdate).getTime()) < 3600000 : false;
       
       if (!isFresh) {
-        console.log('🔄 Synchronisation automatique des taux bancaires...');
+        console.log('ðŸ”„ Synchronisation automatique des taux bancaires...');
         fetchBankRatesFromBonds(false);
       } else {
-        console.log('✅ Données des taux bancaires à jour');
+        console.log('âœ… DonnÃ©es des taux bancaires Ã  jour');
       }
     }
   }, [settings.pricing?.interestRateMode]); // Sync when mode changes
 
-  // Fonction pour mettre à jour les paramètres
+  // Fonction pour mettre Ã  jour les paramÃ¨tres
   const updateSettings = (section: keyof AppSettings, updates: Record<string, unknown>) => {
     setSettings(prev => ({
       ...prev,
@@ -579,11 +557,11 @@ const Settings = () => {
   const saveSettings = async () => {
     setIsSaving(true);
     try {
-      // Préparer les nouvelles configurations
+      // PrÃ©parer les nouvelles configurations
       const newSettings = { ...settings };
       let nameChanged = false;
       
-      // Gérer le changement de nom
+      // GÃ©rer le changement de nom
       if (pendingCompanyName !== null) {
         const trimmedName = pendingCompanyName.trim();
         if (trimmedName.length > 0) {
@@ -592,7 +570,7 @@ const Settings = () => {
         } else {
           toast({
             title: "Nom invalide",
-            description: "Le nom de l'entreprise ne peut pas être vide.",
+            description: "Le nom de l'entreprise ne peut pas Ãªtre vide.",
             variant: "destructive",
           });
           setIsSaving(false);
@@ -600,30 +578,30 @@ const Settings = () => {
         }
       }
       
-      // Sauvegarder les paramètres dans localStorage
+      // Sauvegarder les paramÃ¨tres dans localStorage
       localStorage.setItem('fxRiskManagerSettings', JSON.stringify(newSettings));
       
-      // Mettre à jour le state local
+      // Mettre Ã  jour le state local
       setSettings(newSettings);
       
-      // Mettre à jour les paramètres de l'entreprise si le nom a changé
+      // Mettre Ã  jour les paramÃ¨tres de l'entreprise si le nom a changÃ©
       if (nameChanged) {
         updateCompanySettings({ name: newSettings.company.name });
       }
       
-      // Gérer le logo
+      // GÃ©rer le logo
       if (pendingLogo !== null) {
         setCompanyLogo(pendingLogo);
       } else if (logoMarkedForRemoval) {
         resetCompanyLogo();
       }
       
-      // Nettoyer les états temporaires
+      // Nettoyer les Ã©tats temporaires
       setPendingCompanyName(null);
       setPendingLogo(null);
       setLogoMarkedForRemoval(false);
       
-      // Appliquer les autres paramètres
+      // Appliquer les autres paramÃ¨tres
       if (newSettings.pricing?.useRealTimeData !== isLiveMode) {
         setLiveMode(newSettings.pricing.useRealTimeData);
       }
@@ -641,10 +619,10 @@ const Settings = () => {
       setLastSaved(new Date());
       setHasChanges(false);
       
-      // 🌐 Emit custom event to notify other components of settings update
+      // ðŸŒ Emit custom event to notify other components of settings update
       window.dispatchEvent(new CustomEvent('settingsUpdated'));
       
-      // 🌐 Auto-sync bank rates if in fixed mode
+      // ðŸŒ Auto-sync bank rates if in fixed mode
       if (newSettings.pricing?.interestRateMode === 'fixed') {
         // Trigger auto-sync in background (don't wait)
         fetchBankRatesFromBonds(false).catch(err => {
@@ -652,10 +630,10 @@ const Settings = () => {
         });
       }
       
-      // Afficher un message de succès
+      // Afficher un message de succÃ¨s
       toast({
-        title: "Paramètres sauvegardés",
-        description: "Vos modifications ont été enregistrées avec succès.",
+        title: "ParamÃ¨tres sauvegardÃ©s",
+        description: "Vos modifications ont Ã©tÃ© enregistrÃ©es avec succÃ¨s.",
       });
       
     } catch (error) {
@@ -743,10 +721,10 @@ const Settings = () => {
         }
       }
 
-      // ✅ NOUVEAU : Supprimer également les données de commodités
+      // âœ… NOUVEAU : Supprimer Ã©galement les donnÃ©es de commoditÃ©s
       try {
         clearCommodityData();
-        console.log('✅ Commodity data cleared successfully');
+        console.log('âœ… Commodity data cleared successfully');
       } catch (error) {
         console.error('Error clearing commodity data:', error);
       }
@@ -771,18 +749,18 @@ const Settings = () => {
       // Close dialog
       setShowDeleteDialog(false);
       
-      console.log(`✅ Suppression terminée: ${deletedCount}/${totalCount} expositions supprimées`);
+      console.log(`âœ… Suppression terminÃ©e: ${deletedCount}/${totalCount} expositions supprimÃ©es`);
       
       // Show success notification
       toast({
-        title: "✅ Toutes les données supprimées",
-        description: `Toutes les expositions commodités ont été supprimées avec succès`,
+        title: "âœ… Toutes les donnÃ©es supprimÃ©es",
+        description: `Toutes les expositions commoditÃ©s ont Ã©tÃ© supprimÃ©es avec succÃ¨s`,
       });
       
     } catch (error) {
       console.error('Error deleting exposures:', error);
       toast({
-        title: "❌ Erreur",
+        title: "âŒ Erreur",
         description: "Erreur lors de la suppression des expositions",
         variant: "destructive"
       });
@@ -838,25 +816,25 @@ const Settings = () => {
       // Close dialog
       setShowCleanupDialog(false);
       
-      console.log(`✅ Nettoyage terminé: ${deletedCount}/${totalCount} expositions supprimées`);
+      console.log(`âœ… Nettoyage terminÃ©: ${deletedCount}/${totalCount} expositions supprimÃ©es`);
       
       // Show success notification
       if (deletedCount > 0) {
         toast({
-          title: "✅ Nettoyage terminé",
-          description: `${deletedCount} exposition(s) expirée(s) ou invalide(s) supprimée(s)`,
+          title: "âœ… Nettoyage terminÃ©",
+          description: `${deletedCount} exposition(s) expirÃ©e(s) ou invalide(s) supprimÃ©e(s)`,
         });
       } else {
         toast({
-          title: "ℹ️ Aucun nettoyage nécessaire",
-          description: "Toutes les expositions sont valides et non expirées",
+          title: "â„¹ï¸ Aucun nettoyage nÃ©cessaire",
+          description: "Toutes les expositions sont valides et non expirÃ©es",
         });
       }
       
     } catch (error) {
       console.error('Error cleaning up exposures:', error);
       toast({
-        title: "❌ Erreur",
+        title: "âŒ Erreur",
         description: "Erreur lors du nettoyage des expositions",
         variant: "destructive"
       });
@@ -866,7 +844,7 @@ const Settings = () => {
   };
 
   // Function to create test exposures for demonstration (removed - FX specific, not applicable to commodities)
-  // Commodity test data should be created through the Strategy Builder or Commodity Exposures page
+  // Commodity exposure data is managed from Settings and synced with the dashboard / hedge helper
 
   return (
     <Layout 
@@ -929,14 +907,13 @@ const Settings = () => {
       )}
 
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-10">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="risk">Risk</TabsTrigger>
           <TabsTrigger value="pricing">Pricing</TabsTrigger>
           <TabsTrigger value="interface">Interface</TabsTrigger>
           <TabsTrigger value="notifications">Alerts</TabsTrigger>
           <TabsTrigger value="data">Data</TabsTrigger>
-          <TabsTrigger value="commodityexposures">Commodity Exposures</TabsTrigger>
           <TabsTrigger value="hedging">Hedging</TabsTrigger>
           <TabsTrigger value="api">API</TabsTrigger>
           <TabsTrigger value="diagnostic">Diagnostic</TabsTrigger>
@@ -991,20 +968,20 @@ const Settings = () => {
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                          // Vérifier la taille du fichier (max 5MB)
+                          // VÃ©rifier la taille du fichier (max 5MB)
                           if (file.size > 5 * 1024 * 1024) {
                             toast({
                               title: "Fichier trop volumineux",
-                              description: "La taille du logo ne doit pas dépasser 5MB.",
+                              description: "La taille du logo ne doit pas dÃ©passer 5MB.",
                               variant: "destructive",
                             });
                             return;
                           }
                           
-                          // Vérifier le type de fichier
+                          // VÃ©rifier le type de fichier
                           if (!['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml'].includes(file.type)) {
                             toast({
-                              title: "Format non supporté",
+                              title: "Format non supportÃ©",
                               description: "Veuillez utiliser un fichier PNG, JPEG ou SVG.",
                               variant: "destructive",
                             });
@@ -1081,7 +1058,7 @@ const Settings = () => {
                       )}
                     </div>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1">PNG, JPG ou SVG. Max 1 Mo recommandé.</div>
+                  <div className="text-xs text-muted-foreground mt-1">PNG, JPG ou SVG. Max 1 Mo recommandÃ©.</div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="base-currency">Base Currency</Label>
@@ -1123,7 +1100,7 @@ const Settings = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="fiscal-year">Début d'Année Fiscale</Label>
+                  <Label htmlFor="fiscal-year">DÃ©but d'AnnÃ©e Fiscale</Label>
                   <Input
                     id="fiscal-year"
                     value={settings.company?.fiscalYearStart ?? '01-01'}
@@ -1136,14 +1113,14 @@ const Settings = () => {
               <Separator />
 
               <div className="space-y-4">
-                <h4 className="text-lg font-medium">Informations Système</h4>
+                <h4 className="text-lg font-medium">Informations SystÃ¨me</h4>
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="p-4 border rounded-lg">
                     <div className="text-sm font-medium text-muted-foreground">Version</div>
                     <div className="text-lg font-bold">v2.1.0</div>
                   </div>
                   <div className="p-4 border rounded-lg">
-                    <div className="text-sm font-medium text-muted-foreground">Dernière MAJ</div>
+                    <div className="text-sm font-medium text-muted-foreground">DerniÃ¨re MAJ</div>
                     <div className="text-lg font-bold">{new Date().toLocaleDateString('fr-FR')}</div>
                   </div>
                   <div className="p-4 border rounded-lg">
@@ -1406,7 +1383,7 @@ const Settings = () => {
                       {bondDataLastUpdate && (
                         <p className="text-xs text-green-600 flex items-center gap-1">
                           <CheckCircle className="w-3 h-3" />
-                          Dernière mise à jour: {new Date(bondDataLastUpdate).toLocaleString()}
+                          DerniÃ¨re mise Ã  jour: {new Date(bondDataLastUpdate).toLocaleString()}
                         </p>
                       )}
                       
@@ -1439,8 +1416,8 @@ const Settings = () => {
                       <Alert className="bg-blue-50 border-blue-200">
                         <Landmark className="h-4 w-4 text-blue-600" />
                         <AlertDescription className="text-xs text-blue-700">
-                          Cliquez sur <strong>"Sync from Gov Bonds"</strong> pour récupérer les taux bancaires depuis World Government Bonds.<br/>
-                          Mapping: USD → United States, EUR → Germany, GBP → UK, CHF → Switzerland, JPY → Japan, CAD → Canada, AUD → Australia, NZD → New Zealand.
+                          Cliquez sur <strong>"Sync from Gov Bonds"</strong> pour rÃ©cupÃ©rer les taux bancaires depuis World Government Bonds.<br/>
+                          Mapping: USD â†’ United States, EUR â†’ Germany, GBP â†’ UK, CHF â†’ Switzerland, JPY â†’ Japan, CAD â†’ Canada, AUD â†’ Australia, NZD â†’ New Zealand.
                         </AlertDescription>
                       </Alert>
                       <p className="text-xs text-muted-foreground">
@@ -1455,7 +1432,7 @@ const Settings = () => {
                       <AlertDescription>
                         <strong>Curve Mode:</strong> Interest rates will be interpolated from the bootstrapped yield curve 
                         (IRS + Futures data) based on the specific maturity of each instrument. 
-                        Visit the <strong>Rate Explorer → All Curves</strong> tab to view and load the current curves.
+                        Visit the <strong>Rate Explorer â†’ All Curves</strong> tab to view and load the current curves.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -1617,7 +1594,7 @@ const Settings = () => {
                     <SelectContent>
                       <SelectItem value="fr">French</SelectItem>
                       <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="es">Español</SelectItem>
+                      <SelectItem value="es">EspaÃ±ol</SelectItem>
                       <SelectItem value="de">Deutsch</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1649,7 +1626,7 @@ const Settings = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="fr-FR">Français (1 234,56)</SelectItem>
+                      <SelectItem value="fr-FR">FranÃ§ais (1 234,56)</SelectItem>
                       <SelectItem value="en-US">Anglais (1,234.56)</SelectItem>
                       <SelectItem value="de-DE">Allemand (1.234,56)</SelectItem>
                     </SelectContent>
@@ -1817,7 +1794,7 @@ const Settings = () => {
                     checked={settings.notifications?.maturityAlerts ?? true}
                     onCheckedChange={(checked) => updateSettings('notifications', { maturityAlerts: checked })}
                   />
-                  <Label htmlFor="maturity-alerts">Alertes d'Échéance</Label>
+                  <Label htmlFor="maturity-alerts">Alertes d'Ã‰chÃ©ance</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Switch
@@ -1962,7 +1939,7 @@ const Settings = () => {
                 <h4 className="text-lg font-medium">Commodity Domains</h4>
                 <div className="p-4 border rounded-lg bg-muted/30">
                   <p className="text-sm text-muted-foreground mb-4">
-                    Select the commodity domains you want to work with. Only selected domains will be displayed in Commodity Market, Strategy Builder, and Pricers.
+                    Select the commodity domains you want to work with. Only selected domains will be displayed in Commodity Market and related tools.
                   </p>
                   <div className="space-y-3">
                     {(['metals', 'agricultural', 'energy', 'freight', 'bunker'] as const).map((domain) => {
@@ -2089,8 +2066,7 @@ const Settings = () => {
                       <div className="flex-1">
                         <h5 className="font-medium text-orange-800">Quick Access to Commodity Data Operations</h5>
                         <p className="text-sm text-orange-700">
-                          Manage commodity exposures and related data directly from the Data Management section. 
-                          These operations affect the same data as the Commodity Exposures tab.
+                          Manage commodity exposures and related data directly from this Data Management section.
                         </p>
                       </div>
                     </div>
@@ -2174,329 +2150,108 @@ const Settings = () => {
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="commodityexposures">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                Commodity Exposures Configuration
-              </CardTitle>
-              <CardDescription>
-                Setup and configuration for commodity exposures management
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="auto-detection"
-                    checked={settings.commodityExposures?.autoDetection ?? true}
-                    onCheckedChange={(checked) => updateSettings('commodityExposures', { autoDetection: checked })}
-                  />
-                  <Label htmlFor="auto-detection">Auto-detect Commodity Exposures</Label>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="default-maturity">Default Maturity</Label>
-                  <Select
-                    value={settings.commodityExposures?.defaultMaturity ?? '3M'}
-                    onValueChange={(value) => updateSettings('commodityExposures', { defaultMaturity: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1W">1 Week</SelectItem>
-                      <SelectItem value="1M">1 Month</SelectItem>
-                      <SelectItem value="3M">3 Months</SelectItem>
-                      <SelectItem value="6M">6 Months</SelectItem>
-                      <SelectItem value="1Y">1 Year</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="risk-classification">Risk Classification</Label>
-                  <Select
-                    value={settings.commodityExposures?.riskClassification ?? 'commodity-type'}
-                    onValueChange={(value) => updateSettings('commodityExposures', { riskClassification: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low Risk</SelectItem>
-                      <SelectItem value="medium">Medium Risk</SelectItem>
-                      <SelectItem value="high">High Risk</SelectItem>
-                      <SelectItem value="critical">Critical Risk</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="consolidation-level">Consolidation Level</Label>
-                  <Select
-                    value={settings.commodityExposures?.consolidationLevel ?? 'entity'}
-                    onValueChange={(value) => updateSettings('commodityExposures', { consolidationLevel: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="transaction">Transaction Level</SelectItem>
-                      <SelectItem value="entity">Entity Level</SelectItem>
-                      <SelectItem value="group">Group Level</SelectItem>
-                      <SelectItem value="consolidated">Fully Consolidated</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="exposure-threshold">Exposure Threshold (USD)</Label>
-                  <Input
-                    id="exposure-threshold"
-                    type="number"
-                    value={settings.commodityExposures?.exposureThreshold ?? 10000}
-                    onChange={(e) => updateSettings('commodityExposures', { exposureThreshold: parseInt(e.target.value) })}
-                    min="1000"
-                    step="1000"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reporting-currency">Reporting Currency</Label>
-                  <Select
-                    value={settings.commodityExposures?.reportingCurrency ?? 'USD'}
-                    onValueChange={(value) => updateSettings('commodityExposures', { reportingCurrency: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="USD">USD - US Dollar</SelectItem>
-                      <SelectItem value="EUR">EUR - Euro</SelectItem>
-                      <SelectItem value="GBP">GBP - British Pound</SelectItem>
-                      <SelectItem value="MAD">MAD - Moroccan Dirham</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              <AlertDialog open={showCleanupDialog} onOpenChange={setShowCleanupDialog}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                      <Eraser className="h-5 w-5" />
+                      Clean Up Commodity Exposures
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will remove expired and invalid commodity exposures from the system. 
+                      The following exposures will be cleaned up:
+                      <ul className="list-disc list-inside mt-2 space-y-1">
+                        <li>Exposures with maturity dates in the past</li>
+                        <li>Exposures with invalid or missing amounts</li>
+                        <li>Exposures with invalid currency codes</li>
+                        <li>Duplicate or corrupted entries</li>
+                      </ul>
+                      <br />
+                      Valid exposures will be preserved. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={cleanupExposures}
+                      disabled={isDeleting}
+                      className="bg-orange-600 hover:bg-orange-700"
+                    >
+                      {isDeleting ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Cleaning...
+                        </>
+                      ) : (
+                        <>
+                          <Eraser className="h-4 w-4 mr-2" />
+                          Clean Up
+                        </>
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
 
-              <Separator />
+              <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                      <Trash2 className="h-5 w-5" />
+                      Delete All Commodity Exposures
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      <strong className="text-destructive">This is a permanent action!</strong>
+                      <br /><br />
+                      You are about to delete ALL commodity exposures from the system. This includes:
+                      <ul className="list-disc list-inside mt-2 space-y-1">
+                        <li>All current commodity exposures</li>
+                        <li>Historical exposure data</li>
+                        <li>Associated backup files</li>
+                        <li>Cached exposure calculations</li>
+                      </ul>
+                      <br />
+                      <strong>This action cannot be undone.</strong> Make sure you have exported 
+                      or backed up any important data before proceeding.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={deleteAllExposures}
+                      disabled={isDeleting}
+                      className="bg-destructive hover:bg-destructive/90"
+                    >
+                      {isDeleting ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete All
+                        </>
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
 
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="include-pending"
-                    checked={settings.commodityExposures?.includePendingTransactions ?? false}
-                    onCheckedChange={(checked) => updateSettings('commodityExposures', { includePendingTransactions: checked })}
-                  />
-                  <Label htmlFor="include-pending">Include Pending Transactions</Label>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <h4 className="text-lg font-medium">Maturity Buckets</h4>
-                <div className="grid gap-2 md:grid-cols-3">
-                  {(settings.commodityExposures?.maturityBuckets ?? ['0-3M', '3-6M', '6-12M', '12M+']).map((bucket, index) => (
-                    <div key={index} className="p-3 border rounded-lg">
-                      <Badge variant="secondary">{bucket}</Badge>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Maturity buckets are used to categorize exposures by time horizon for risk analysis.
-                </p>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-lg font-medium text-destructive">Bulk Operations</h4>
-                  <Badge variant="outline" className="text-destructive border-destructive">
-                    <AlertCircle className="h-3 w-3 mr-1" />
-                    Danger Zone
-                  </Badge>
-                </div>
-                
-                <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
-                  <div className="space-y-4">
-                    <div className="flex items-start space-x-3">
-                      <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
-                      <div className="flex-1">
-                        <h5 className="font-medium text-destructive">Warning</h5>
-                        <p className="text-sm text-muted-foreground">
-                          These operations will permanently modify or delete commodity exposure data. 
-                          Make sure to backup your data before proceeding.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <AlertDialog open={showCleanupDialog} onOpenChange={setShowCleanupDialog}>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="outline" className="w-full" disabled={isDeleting}>
-                            <Eraser className="h-4 w-4 mr-2" />
-                            Clean Up Exposures
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle className="flex items-center gap-2">
-                              <Eraser className="h-5 w-5" />
-                              Clean Up Commodity Exposures
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This will remove expired and invalid commodity exposures from the system. 
-                              The following exposures will be cleaned up:
-                              <ul className="list-disc list-inside mt-2 space-y-1">
-                                <li>Exposures with maturity dates in the past</li>
-                                <li>Exposures with invalid or missing amounts</li>
-                                <li>Exposures with invalid currency codes</li>
-                                <li>Duplicate or corrupted entries</li>
-                              </ul>
-                              <br />
-                              Valid exposures will be preserved. This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={cleanupExposures}
-                              disabled={isDeleting}
-                              className="bg-orange-600 hover:bg-orange-700"
-                            >
-                              {isDeleting ? (
-                                <>
-                                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                  Cleaning...
-                                </>
-                              ) : (
-                                <>
-                                  <Eraser className="h-4 w-4 mr-2" />
-                                  Clean Up
-                                </>
-                              )}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-
-                      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="destructive" className="w-full" disabled={isDeleting}>
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete All Exposures
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-                              <Trash2 className="h-5 w-5" />
-                              Delete All Commodity Exposures
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              <strong className="text-destructive">This is a permanent action!</strong>
-                              <br /><br />
-                              You are about to delete ALL commodity exposures from the system. This includes:
-                              <ul className="list-disc list-inside mt-2 space-y-1">
-                                <li>All current commodity exposures</li>
-                                <li>Historical exposure data</li>
-                                <li>Associated backup files</li>
-                                <li>Cached exposure calculations</li>
-                              </ul>
-                              <br />
-                              <strong>This action cannot be undone.</strong> Make sure you have exported 
-                              or backed up any important data before proceeding.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={deleteAllExposures}
-                              disabled={isDeleting}
-                              className="bg-destructive hover:bg-destructive/90"
-                            >
-                              {isDeleting ? (
-                                <>
-                                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                  Deleting...
-                                </>
-                              ) : (
-                                <>
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete All
-                                </>
-                              )}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-
-                    {deletionStats && (
-                      <Alert className="border-green-200 bg-green-50">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <AlertDescription className="text-green-800">
-                          Operation completed successfully! 
-                          {deletionStats.deleted > 0 ? (
-                            <> {deletionStats.deleted} out of {deletionStats.total} exposures were processed.</>
-                          ) : (
-                            <> No exposures needed to be processed.</>
-                          )}
-                        </AlertDescription>
-                      </Alert>
+              {deletionStats && (
+                <Alert className="border-green-200 bg-green-50">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-green-800">
+                    Operation completed successfully! 
+                    {deletionStats.deleted > 0 ? (
+                      <> {deletionStats.deleted} out of {deletionStats.total} exposures were processed.</>
+                    ) : (
+                      <> No exposures needed to be processed.</>
                     )}
-
-
-                    <div className="grid gap-4 md:grid-cols-3 text-sm">
-                      <div className="p-3 border rounded-lg">
-                        <div className="font-medium text-muted-foreground">Current Exposures</div>
-                        <div className="text-lg font-bold">
-                          {(() => {
-                            try {
-                              const exposuresData = localStorage.getItem('commodityExposures');
-                              const exposures = exposuresData ? JSON.parse(exposuresData) : [];
-                              return exposures.length || 0;
-                            } catch {
-                              return 0;
-                            }
-                          })()}
-                        </div>
-                      </div>
-                      <div className="p-3 border rounded-lg">
-                        <div className="font-medium text-muted-foreground">Data Size</div>
-                        <div className="text-lg font-bold">
-                          {(() => {
-                            try {
-                              const exposuresData = localStorage.getItem('commodityExposures');
-                              const sizeKB = exposuresData ? (exposuresData.length / 1024).toFixed(1) : '0';
-                              return `${sizeKB} KB`;
-                            } catch {
-                              return '0 KB';
-                            }
-                          })()}
-                        </div>
-                      </div>
-                      <div className="p-3 border rounded-lg">
-                        <div className="font-medium text-muted-foreground">Last Modified</div>
-                        <div className="text-lg font-bold">
-                          {(() => {
-                            try {
-                              const lastModified = localStorage.getItem('commodityExposuresLastModified');
-                              return lastModified ? new Date(lastModified).toLocaleDateString('en-US') : 'Never';
-                            } catch {
-                              return 'Never';
-                            }
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                  </AlertDescription>
+                </Alert>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -2758,20 +2513,20 @@ const Settings = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Key className="h-5 w-5" />
-                Clés API
+                ClÃ©s API
               </CardTitle>
               <CardDescription>
-                Gestion des clés API pour les services de l'application (Hedge Assistant, etc.). Enregistrez avec le bouton Save en haut pour conserver les modifications.
+                Gestion des clÃ©s API pour les services de l'application (Hedge Assistant, etc.). Enregistrez avec le bouton Save en haut pour conserver les modifications.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
                 <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
                   <div className="flex items-center gap-2">
-                    <Label className="text-sm font-medium">Clé API Gemini (Google AI Studio)</Label>
+                    <Label className="text-sm font-medium">ClÃ© API Gemini (Google AI Studio)</Label>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Utilisée par le Hedge Assistant pour le modèle Gemini 2.5 Flash. Si renseignée ici, elle sera disponible pour le chat (vous pouvez aussi la saisir dans Configuration de l'Assistant). Obtenez une clé sur Google AI Studio.
+                    UtilisÃ©e par le Hedge Assistant pour le modÃ¨le Gemini 2.5 Flash. Si renseignÃ©e ici, elle sera disponible pour le chat (vous pouvez aussi la saisir dans Configuration de l'Assistant). Obtenez une clÃ© sur Google AI Studio.
                   </p>
                   <Input
                     type="password"
@@ -2798,10 +2553,10 @@ const Settings = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5" />
-                Diagnostic & Récupération
+                Diagnostic & RÃ©cupÃ©ration
               </CardTitle>
               <CardDescription>
-                Outils de diagnostic et de récupération pour résoudre les problèmes de l'application
+                Outils de diagnostic et de rÃ©cupÃ©ration pour rÃ©soudre les problÃ¨mes de l'application
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -2818,7 +2573,7 @@ const Settings = () => {
                         })()}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Éléments stockés
+                        Ã‰lÃ©ments stockÃ©s
                       </p>
                     </CardContent>
                   </Card>
@@ -2845,7 +2600,7 @@ const Settings = () => {
                         })()}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Plus gros élément
+                        Plus gros Ã©lÃ©ment
                       </p>
                     </CardContent>
                   </Card>
@@ -2856,20 +2611,20 @@ const Settings = () => {
 
               {/* Emergency Recovery Actions */}
               <div className="space-y-4">
-                <h4 className="text-lg font-semibold">Actions de Récupération</h4>
+                <h4 className="text-lg font-semibold">Actions de RÃ©cupÃ©ration</h4>
                 <Alert>
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
-                    Ces actions peuvent supprimer des données. Utilisez-les uniquement en cas de problème.
+                    Ces actions peuvent supprimer des donnÃ©es. Utilisez-les uniquement en cas de problÃ¨me.
                   </AlertDescription>
                 </Alert>
                 
                 <div className="grid gap-4 md:grid-cols-2">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-base">Nettoyer les données du Strategy Builder</CardTitle>
+                      <CardTitle className="text-base">Nettoyer les donnÃ©es du Strategy Builder</CardTitle>
                       <CardDescription>
-                        Supprime les données corrompues du Strategy Builder
+                        Supprime les donnÃ©es corrompues du Strategy Builder
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -2882,10 +2637,10 @@ const Settings = () => {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Nettoyer les données du Strategy Builder</AlertDialogTitle>
+                            <AlertDialogTitle>Nettoyer les donnÃ©es du Strategy Builder</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Cette action va supprimer toutes les données sauvegardées du Strategy Builder, 
-                              y compris les stratégies, paramètres et résultats. Cette action est irréversible.
+                              Cette action va supprimer toutes les donnÃ©es sauvegardÃ©es du Strategy Builder, 
+                              y compris les stratÃ©gies, paramÃ¨tres et rÃ©sultats. Cette action est irrÃ©versible.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
@@ -2894,8 +2649,8 @@ const Settings = () => {
                               onClick={() => {
                                 performEmergencyRecovery({ clearCalculatorState: true });
                                 toast({
-                                  title: "Données nettoyées",
-                                  description: "Les données du Strategy Builder ont été supprimées.",
+                                  title: "DonnÃ©es nettoyÃ©es",
+                                  description: "Les donnÃ©es du Strategy Builder ont Ã©tÃ© supprimÃ©es.",
                                 });
                               }}
                               className="bg-orange-600 hover:bg-orange-700"
@@ -2910,9 +2665,9 @@ const Settings = () => {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-base">Réinitialiser toutes les données</CardTitle>
+                      <CardTitle className="text-base">RÃ©initialiser toutes les donnÃ©es</CardTitle>
                       <CardDescription>
-                        Supprime toutes les données de l'application
+                        Supprime toutes les donnÃ©es de l'application
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -2920,16 +2675,16 @@ const Settings = () => {
                         <AlertDialogTrigger asChild>
                           <Button variant="outline" className="w-full text-red-600 border-red-200 hover:bg-red-50">
                             <Trash2 className="h-4 w-4 mr-2" />
-                            Réinitialiser tout
+                            RÃ©initialiser tout
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Réinitialiser toutes les données</AlertDialogTitle>
+                            <AlertDialogTitle>RÃ©initialiser toutes les donnÃ©es</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Cette action va supprimer TOUTES les données de l'application, 
-                              y compris les paramètres, stratégies, expositions et instruments. 
-                              Cette action est irréversible.
+                              Cette action va supprimer TOUTES les donnÃ©es de l'application, 
+                              y compris les paramÃ¨tres, stratÃ©gies, expositions et instruments. 
+                              Cette action est irrÃ©versible.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
@@ -2938,13 +2693,13 @@ const Settings = () => {
                               onClick={() => {
                                 performEmergencyRecovery({ resetToDefaults: true });
                                 toast({
-                                  title: "Application réinitialisée",
-                                  description: "Toutes les données ont été supprimées.",
+                                  title: "Application rÃ©initialisÃ©e",
+                                  description: "Toutes les donnÃ©es ont Ã©tÃ© supprimÃ©es.",
                                 });
                               }}
                               className="bg-red-600 hover:bg-red-700"
                             >
-                              Réinitialiser
+                              RÃ©initialiser
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -2958,7 +2713,7 @@ const Settings = () => {
 
               {/* System Information */}
               <div className="space-y-4">
-                <h4 className="text-lg font-semibold">Informations Système</h4>
+                <h4 className="text-lg font-semibold">Informations SystÃ¨me</h4>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Navigateur</Label>

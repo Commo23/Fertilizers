@@ -1,4 +1,4 @@
-import { StrategyComponent } from '../pages/Index';
+import type { StrategyComponent } from '@/types/strategyBuilder';
 
 /** Canonical rounding: 6 decimals for prices (option, forward, spot). */
 function roundPrice(x: number): number {
