@@ -2,6 +2,17 @@ type Params = Record<string, string | number | undefined>;
 
 const MESSAGES: Record<string, string> = {
   'panels.liveNews': 'Actualités en direct',
+  'panels.liveWebcams': 'Webcams en direct',
+  'components.webcams.regions.iran': 'Iran / attaques',
+  'components.webcams.regions.all': 'Tous',
+  'components.webcams.regions.mideast': 'Moyen-Orient',
+  'components.webcams.regions.europe': 'Europe',
+  'components.webcams.regions.americas': 'Amériques',
+  'components.webcams.regions.asia': 'Asie',
+  'components.webcams.regions.space': 'Espace',
+  'components.webcams.paused': 'Flux en pause (hors écran)',
+  'components.webcams.pausedIdle': 'Flux en pause (inactivité)',
+  'webcams.expand': 'Agrandir',
   'common.close': 'Fermer',
   'common.retry': 'Réessayer',
   'common.live': 'LIVE',

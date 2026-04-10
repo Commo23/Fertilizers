@@ -4,6 +4,11 @@ export interface PanelOptions {
   className?: string;
   /** WorldMonitor panels support a close control; embedded page omits it. */
   closable?: boolean;
+  /**
+   * Some WorldMonitor panels expose a live count badge.
+   * Kept for compatibility; badge is only rendered when panel calls insertLiveCountBadge().
+   */
+  showCount?: boolean;
 }
 
 /**
@@ -44,6 +49,30 @@ export class Panel {
 
   public getElement(): HTMLElement {
     return this.element;
+  }
+
+  protected setContent(html: string): void {
+    this.content.innerHTML = html;
+  }
+
+  protected showLoading(message = 'Loading…'): void {
+    this.setContent(
+      `<div style="padding:14px;color:hsl(var(--muted-foreground));font-size:12px">${message}</div>`,
+    );
+  }
+
+  protected showError(message: string, onRetry?: () => void): void {
+    this.setContent(
+      `<div style="padding:14px;display:flex;flex-direction:column;gap:10px">
+        <div style="color:hsl(var(--destructive));font-weight:600;font-size:12px">Error</div>
+        <div style="color:hsl(var(--muted-foreground));font-size:12px">${message}</div>
+        ${onRetry ? `<button class="wm-panel-retry" style="align-self:flex-start;padding:6px 10px;border-radius:6px;border:1px solid hsl(var(--border));background:hsl(var(--card));color:hsl(var(--foreground));cursor:pointer;font-size:12px">Retry</button>` : ''}
+      </div>`,
+    );
+
+    if (!onRetry) return;
+    const btn = this.content.querySelector<HTMLButtonElement>('.wm-panel-retry');
+    if (btn) btn.onclick = onRetry;
   }
 
   protected insertLiveCountBadge(count: number): void {

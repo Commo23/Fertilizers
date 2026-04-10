@@ -20,6 +20,8 @@ import CommodityMarket from "./pages/CommodityMarket";
 import MarketNews from "./pages/MarketNews";
 import CommodityNews from "./pages/CommodityNews";
 import LiveNews from "./pages/LiveNews";
+import LiveWebcams from "./pages/LiveWebcams";
+import HormuzTracker from "./pages/HormuzTracker";
 import WorldMap from "./pages/WorldMap";
 import EconomicCalendar from "./pages/EconomicCalendar";
 import AdvancedChart from "./pages/AdvancedChart";
@@ -78,6 +80,8 @@ const App = () => {
               <Route path="/market-news" element={<ProtectedRoute><MarketNews /></ProtectedRoute>} />
               <Route path="/commodity-news" element={<ProtectedRoute><CommodityNews /></ProtectedRoute>} />
               <Route path="/live-news" element={<ProtectedRoute><LiveNews /></ProtectedRoute>} />
+              <Route path="/live-webcams" element={<ProtectedRoute><LiveWebcams /></ProtectedRoute>} />
+              <Route path="/hormuz-tracker" element={<ProtectedRoute><HormuzTracker /></ProtectedRoute>} />
               <Route path="/world-map" element={<ProtectedRoute><WorldMap /></ProtectedRoute>} />
               <Route path="/economic-calendar" element={<ProtectedRoute><EconomicCalendar /></ProtectedRoute>} />
               <Route path="/advanced-chart" element={<ProtectedRoute><AdvancedChart /></ProtectedRoute>} />

@@ -15,6 +15,8 @@ import {
   MessageSquare,
   SatelliteDish,
   Map,
+  Ship,
+  Video,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -91,6 +93,18 @@ const marketDataItems: MarketDataNavItem[] = [
     url: "/live-news",
     icon: Radio,
     description: "TV news channels (24/7 streams)"
+  },
+  {
+    title: "Live webcams",
+    url: "/live-webcams",
+    icon: Video,
+    description: "Global live webcams (YouTube grid, WorldMonitor-style)"
+  },
+  {
+    title: "Hormuz tracker",
+    url: "/hormuz-tracker",
+    icon: Ship,
+    description: "Strait of Hormuz trade flow monitor (crude/LNG/transits/fertilizer)",
   },
   {
     title: "Situation mondiale",
