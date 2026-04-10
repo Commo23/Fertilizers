@@ -29,3 +29,6 @@ verify_jwt = false
 [functions.scrape-vol-surface]
 verify_jwt = false
 
+[functions.ais-sse]
+verify_jwt = false
+

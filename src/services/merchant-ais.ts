@@ -124,6 +124,11 @@ export function getMerchantAisWebSocketUrl(): string {
   return `${proto}//${window.location.host}/api/ais-relay`;
 }
 
+export function getMerchantAisSseUrl(): string | null {
+  const configured = String(import.meta.env.VITE_AIS_SSE_URL ?? "").trim();
+  return configured ? configured : null;
+}
+
 /**
  * Subscribes to the dev AIS relay, parses AIS JSON, and pushes throttled vessel lists.
  * @returns disconnect function
@@ -136,6 +141,23 @@ export function connectMerchantAisStream(onUpdate: (vessels: MerchantCargoVessel
   const tracksByMmsi = new Map<string, Array<[number, number]>>();
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
+  const onRawMessage = (raw: string) => {
+    const v = parseEnvelope(raw, names, destinations, staticAisTypeByMmsi);
+    if (v) {
+      const pt: [number, number] = [v.lon, v.lat];
+      const track = tracksByMmsi.get(v.mmsi) ?? [];
+      const last = track[track.length - 1];
+      if (!last || last[0] !== pt[0] || last[1] !== pt[1]) {
+        track.push(pt);
+        if (track.length > TRACK_POINTS) track.splice(0, track.length - TRACK_POINTS);
+        tracksByMmsi.set(v.mmsi, track);
+      }
+      v.track = tracksByMmsi.get(v.mmsi);
+      byMmsi.set(v.mmsi, v);
+    }
+    scheduleFlush();
+  };
+
   const scheduleFlush = () => {
     if (flushTimer != null) return;
     flushTimer = setTimeout(() => {
@@ -145,6 +167,39 @@ export function connectMerchantAisStream(onUpdate: (vessels: MerchantCargoVessel
     }, FLUSH_MS);
   };
 
+  // ── Production path: Supabase Edge Function streaming via SSE ──────────────
+  const sseUrl = getMerchantAisSseUrl();
+  if (sseUrl && !import.meta.env.DEV) {
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource(sseUrl);
+    } catch {
+      return () => undefined;
+    }
+
+    if (import.meta.env.DEV) {
+      es.addEventListener("open", () => console.debug("[merchant-ais] SSE connected"));
+    }
+
+    es.addEventListener("message", (ev) => {
+      if (typeof ev.data === "string" && ev.data) onRawMessage(ev.data);
+    });
+
+    es.addEventListener("error", () => {
+      // EventSource auto-reconnects; keep UI stable.
+    });
+
+    return () => {
+      try {
+        es?.close();
+      } catch {
+        /* ignore */
+      }
+      if (flushTimer != null) clearTimeout(flushTimer);
+    };
+  }
+
+  // ── Dev path: WebSocket relay (Vite plugin) ───────────────────────────────
   let ws: WebSocket;
   try {
     ws = new WebSocket(getMerchantAisWebSocketUrl());
@@ -173,22 +228,7 @@ export function connectMerchantAisStream(onUpdate: (vessels: MerchantCargoVessel
   }
 
   ws.onmessage = (ev) => {
-    const v = parseEnvelope(String(ev.data), names, destinations, staticAisTypeByMmsi);
-    if (v) {
-      const pt: [number, number] = [v.lon, v.lat];
-      const track = tracksByMmsi.get(v.mmsi) ?? [];
-      const last = track[track.length - 1];
-      if (!last || last[0] !== pt[0] || last[1] !== pt[1]) {
-        track.push(pt);
-        if (track.length > TRACK_POINTS) track.splice(0, track.length - TRACK_POINTS);
-        tracksByMmsi.set(v.mmsi, track);
-      }
-      v.track = tracksByMmsi.get(v.mmsi);
-      byMmsi.set(v.mmsi, v);
-      scheduleFlush();
-    } else {
-      scheduleFlush();
-    }
+    onRawMessage(String(ev.data));
   };
 
   ws.onerror = () => {
