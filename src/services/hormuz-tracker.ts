@@ -1,12 +1,21 @@
+import { config } from '@/config/environment';
+
 function normalizeBaseUrl(base: string): string {
   return base.replace(/\/$/, '');
 }
 
 function getSupabaseFunctionsBase(): string {
-  const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
-  // Default matches env fallbacks in src/config/environment.ts
-  const fallback = 'https://fwjdrsubflqmllkhhdef.supabase.co';
-  return `${normalizeBaseUrl(url || fallback)}/functions/v1`;
+  const url = config.supabase.url.trim();
+  return `${normalizeBaseUrl(url)}/functions/v1`;
+}
+
+/** Required for browser calls to Supabase Edge Functions (gateway checks apikey / Bearer). */
+function supabaseFunctionHeaders(): HeadersInit {
+  const key = config.supabase.anonKey;
+  return {
+    apikey: key,
+    Authorization: `Bearer ${key}`,
+  };
 }
 
 export interface HormuzSeries {
@@ -33,9 +42,9 @@ export interface HormuzTrackerData {
 
 export async function fetchHormuzTracker(): Promise<HormuzTrackerData | null> {
   try {
-    // Supabase Edge Function (verify_jwt=false)
     const resp = await fetch(`${getSupabaseFunctionsBase()}/hormuz-tracker`, {
       signal: AbortSignal.timeout(15_000),
+      headers: supabaseFunctionHeaders(),
     });
     if (!resp.ok) return null;
     const raw = (await resp.json()) as HormuzTrackerData;
