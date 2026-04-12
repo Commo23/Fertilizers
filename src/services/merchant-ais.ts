@@ -149,6 +149,7 @@ function normalizeSseText(s: string): string {
 async function consumeAisSseStream(
   body: ReadableStream<Uint8Array>,
   onData: (line: string) => void,
+  onSseError: (payload: string) => void,
   signal: AbortSignal,
 ): Promise<void> {
   const reader = body.getReader();
@@ -162,10 +163,15 @@ async function consumeAisSseStream(
       pending = pending.slice(sep + 2);
       const trimmed = block.trim();
       if (!trimmed || trimmed.startsWith(":")) continue;
+      let eventName = "message";
       for (const line of trimmed.split("\n")) {
-        if (line.startsWith("data:")) {
+        if (line.startsWith("event:")) {
+          eventName = line.slice(6).trim();
+        } else if (line.startsWith("data:")) {
           const payload = line.slice(5).trim();
-          if (payload) onData(payload);
+          if (!payload) continue;
+          if (eventName === "error") onSseError(payload);
+          else onData(payload);
         }
       }
     }
@@ -243,7 +249,27 @@ function connectMerchantAisSseFetch(
           await new Promise((r) => setTimeout(r, SSE_RECONNECT_MS));
           continue;
         }
-        await consumeAisSseStream(res.body, onRawMessage, abort.signal);
+        let warnedUpstream = false;
+        const onSseError = (payload: string) => {
+          if (warnedUpstream) return;
+          warnedUpstream = true;
+          let detail: string = payload;
+          try {
+            const j = JSON.parse(payload) as { kind?: string; code?: number; reason?: string };
+            if (j.kind === "aisstream_close" && typeof j.code === "number") {
+              detail = `AISStream closed (code ${j.code}${j.reason ? `: ${j.reason}` : ""}). Check AISSTREAM_API_KEY secret on Edge Function ais-sse, quota, or AISStream status.`;
+            } else {
+              detail = JSON.stringify(j);
+            }
+          } catch {
+            if (payload === "upstream_error") {
+              detail =
+                "upstream_error — WebSocket to AISStream failed (set AISSTREAM_API_KEY on ais-sse, check Supabase logs).";
+            }
+          }
+          console.warn("[merchant-ais]", detail);
+        };
+        await consumeAisSseStream(res.body, onRawMessage, onSseError, abort.signal);
       } catch {
         /* aborted or network */
       }

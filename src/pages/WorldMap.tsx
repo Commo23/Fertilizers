@@ -15,6 +15,11 @@ import { fetchEarthquakes } from "@/services/earthquakes";
 import { fetchNaturalEvents } from "@/services/eonet";
 import { connectMerchantAisStream } from "@/services/merchant-ais";
 import type { MerchantCargoVessel } from "@/types";
+import { mmsiToCountry } from "@/utils/mmsi-mid";
+
+function flagCountry(v: MerchantCargoVessel): string {
+  return (mmsiToCountry(v.mmsi) ?? v.country ?? "").trim();
+}
 
 const LIVE_DATA_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -145,9 +150,11 @@ export default function WorldMap() {
       return true;
     };
 
+    const wantNorm = wantCountry.toLowerCase();
     const countryOk = (v: MerchantCargoVessel) => {
       if (!wantCountry || wantCountry === "all") return true;
-      return (v.country ?? "").toLowerCase() === wantCountry.toLowerCase();
+      const flag = flagCountry(v).toLowerCase();
+      return flag === wantNorm;
     };
 
     const destOk = (v: MerchantCargoVessel) => {
@@ -158,18 +165,18 @@ export default function WorldMap() {
     return cargoVessels.filter((v) => typeOk(v) && countryOk(v) && destOk(v));
   }, [cargoCountryFilter, cargoDestinationFilter, cargoTypeFilter, cargoVessels]);
 
-  // Apply filtered vessels to the map renderer.
+  // Apply filtered vessels to the map renderer (must not early-return when cargo is on — keeps filter in sync).
   useEffect(() => {
     const map = mapRef.current;
     if (!mapReady || !map) return;
-    if (!map.getState().layers.cargoShips) return;
-    map.setMerchantCargoVessels(filteredCargoVessels);
+    const cargoOn = map.getState().layers.cargoShips;
+    map.setMerchantCargoVessels(cargoOn ? filteredCargoVessels : []);
   }, [filteredCargoVessels, mapReady]);
 
   const cargoCountries = useMemo(() => {
     const counts = new Map<string, number>();
     for (const v of cargoVessels) {
-      const c = (v.country ?? "").trim();
+      const c = flagCountry(v);
       if (!c) continue;
       counts.set(c, (counts.get(c) ?? 0) + 1);
     }
@@ -187,7 +194,7 @@ export default function WorldMap() {
       const mmsi = (v.mmsi ?? "").toLowerCase();
       const dest = (v.destination ?? "").toLowerCase();
       const type = (v.shipTypeLabel ?? "").toLowerCase();
-      const country = (v.country ?? "").toLowerCase();
+      const country = flagCountry(v).toLowerCase();
       return (
         name.includes(q) ||
         mmsi.includes(q) ||
