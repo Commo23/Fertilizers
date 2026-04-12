@@ -15,11 +15,6 @@ import { fetchEarthquakes } from "@/services/earthquakes";
 import { fetchNaturalEvents } from "@/services/eonet";
 import { connectMerchantAisStream } from "@/services/merchant-ais";
 import type { MerchantCargoVessel } from "@/types";
-import { mmsiToCountry } from "@/utils/mmsi-mid";
-
-function flagCountry(v: MerchantCargoVessel): string {
-  return (mmsiToCountry(v.mmsi) ?? v.country ?? "").trim();
-}
 
 const LIVE_DATA_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -102,7 +97,7 @@ export default function WorldMap() {
     };
   }, [mapReady]);
 
-  /** Cargo / tanker AIS — dev: Vite WS relay; prod: Supabase Edge `ais-sse` (+ `AISSTREAM_API_KEY` côté Supabase). */
+  /** Cargo / tanker AIS (AISStream via Vite relay — set env `AISSTREAM_API_KEY` for `npm run dev`). */
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
@@ -150,11 +145,9 @@ export default function WorldMap() {
       return true;
     };
 
-    const wantNorm = wantCountry.toLowerCase();
     const countryOk = (v: MerchantCargoVessel) => {
       if (!wantCountry || wantCountry === "all") return true;
-      const flag = flagCountry(v).toLowerCase();
-      return flag === wantNorm;
+      return (v.country ?? "").toLowerCase() === wantCountry.toLowerCase();
     };
 
     const destOk = (v: MerchantCargoVessel) => {
@@ -165,18 +158,18 @@ export default function WorldMap() {
     return cargoVessels.filter((v) => typeOk(v) && countryOk(v) && destOk(v));
   }, [cargoCountryFilter, cargoDestinationFilter, cargoTypeFilter, cargoVessels]);
 
-  // Apply filtered vessels to the map renderer (must not early-return when cargo is on — keeps filter in sync).
+  // Apply filtered vessels to the map renderer.
   useEffect(() => {
     const map = mapRef.current;
     if (!mapReady || !map) return;
-    const cargoOn = map.getState().layers.cargoShips;
-    map.setMerchantCargoVessels(cargoOn ? filteredCargoVessels : []);
+    if (!map.getState().layers.cargoShips) return;
+    map.setMerchantCargoVessels(filteredCargoVessels);
   }, [filteredCargoVessels, mapReady]);
 
   const cargoCountries = useMemo(() => {
     const counts = new Map<string, number>();
     for (const v of cargoVessels) {
-      const c = flagCountry(v);
+      const c = (v.country ?? "").trim();
       if (!c) continue;
       counts.set(c, (counts.get(c) ?? 0) + 1);
     }
@@ -194,7 +187,7 @@ export default function WorldMap() {
       const mmsi = (v.mmsi ?? "").toLowerCase();
       const dest = (v.destination ?? "").toLowerCase();
       const type = (v.shipTypeLabel ?? "").toLowerCase();
-      const country = flagCountry(v).toLowerCase();
+      const country = (v.country ?? "").toLowerCase();
       return (
         name.includes(q) ||
         mmsi.includes(q) ||

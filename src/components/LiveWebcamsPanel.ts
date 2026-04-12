@@ -1,8 +1,8 @@
-import { Panel } from '@/components/Panel';
+import { Panel } from './Panel';
 import { IDLE_PAUSE_MS, STORAGE_KEYS } from '@/config';
 import { isDesktopRuntime, getLocalApiPort } from '@/services/runtime';
 import { escapeHtml } from '@/utils/sanitize';
-import { t } from '@/services/i18n';
+import { t } from '../services/i18n';
 import { track, trackWebcamSelected, trackWebcamRegionFiltered } from '@/services/analytics';
 import { getStreamQuality, subscribeStreamQualityChange } from '@/services/ai-flow-settings';
 import { isMobileDevice, loadFromStorage, saveToStorage } from '@/utils';
@@ -682,7 +682,7 @@ export class LiveWebcamsPanel extends Panel {
     }
   }
 
-  public override destroy(): void {
+  public destroy(): void {
     if (this.idleTimeout) {
       clearTimeout(this.idleTimeout);
       this.idleTimeout = null;

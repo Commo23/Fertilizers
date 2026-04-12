@@ -5,8 +5,7 @@ function corsHeaders(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers":
-      "Content-Type, Authorization, apikey, x-client-info, x-supabase-authorization",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Allow-Credentials": "true",
   };
 }
@@ -74,7 +73,6 @@ Deno.serve(async (req: Request) => {
       const enc = new TextEncoder();
       let keepAliveId: number | null = null;
       let closed = false;
-      let gotAisMessage = false;
 
       const send = (chunk: string) => {
         if (closed) return;
@@ -121,25 +119,17 @@ Deno.serve(async (req: Request) => {
       ws.addEventListener("message", (ev) => {
         const data = typeof ev.data === "string" ? ev.data : "";
         if (!data) return;
-        gotAisMessage = true;
         // One SSE event per AIS message
         send(`data: ${data.replace(/\n/g, " ")}\n\n`);
       });
 
       ws.addEventListener("error", () => {
-        /* `close` follows with WebSocket close code (TLS, auth, etc.) */
+        send(`event: error\ndata: upstream_error\n\n`);
+        closeAll();
       });
 
-      ws.addEventListener("close", (ev) => {
-        if (!gotAisMessage) {
-          const ce = ev as CloseEvent;
-          const payload = JSON.stringify({
-            kind: "aisstream_close",
-            code: ce.code,
-            reason: typeof ce.reason === "string" ? ce.reason : "",
-          });
-          send(`event: error\ndata: ${payload}\n\n`);
-        }
+      ws.addEventListener("close", () => {
+        // Let EventSource reconnect
         closeAll();
       });
     },
