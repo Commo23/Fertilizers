@@ -4,6 +4,7 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { rssProxyPlugin } from "./vite-plugin-rss-proxy";
 import { aisRelayPlugin } from "./vite-plugin-ais-relay";
+import { aisMmsiSseRelayPlugin } from "./vite-plugin-ais-mmsi-sse";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -22,6 +23,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     rssProxyPlugin(),
     aisRelayPlugin(),
+    aisMmsiSseRelayPlugin(),
     react(),
     mode === 'development' &&
     componentTagger(),

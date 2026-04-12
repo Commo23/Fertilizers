@@ -21,13 +21,36 @@ function jsonOrDefault<T>(value: string | null, fallback: T): T {
   }
 }
 
-const DEFAULT_BBOX: number[][][] = [[[20, -25], [40, 5]]]; // Morocco + approaches
+/**
+ * Default bbox aligned with `ais-sse` (Morocco + approaches). AISStream may drop
+ * subscriptions that are too large (e.g. full world). Override via `AIS_MMSI_BOUNDING_BOXES`.
+ */
+const DEFAULT_BBOX: number[][][] = [[[20, -25], [40, 5]]];
+
 const DEFAULT_TYPES = [
   "PositionReport",
   "ShipStaticData",
   "ExtendedClassBPositionReport",
   "StandardClassBPositionReport",
 ];
+
+const MAX_MMSI = 50;
+
+/** AISStream OpenAPI: FiltersShipMMSI entries are length 9. */
+function parseMmsiQuery(url: URL): string[] {
+  const raw = (url.searchParams.get("mmsi") ?? "").trim();
+  const tokens = raw.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of tokens) {
+    if (!/^\d{9}$/.test(t)) continue;
+    if (seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+    if (out.length >= MAX_MMSI) break;
+  }
+  return out;
+}
 
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("Origin");
@@ -44,6 +67,18 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  const url = new URL(req.url);
+  const mmsiList = parseMmsiQuery(url);
+  if (mmsiList.length === 0) {
+    return new Response(
+      JSON.stringify({
+        error: "Missing or invalid mmsi",
+        hint: "Use ?mmsi=123456789,987654321 (exactly 9 digits per MMSI, max 50)",
+      }),
+      { status: 400, headers: { ...baseCors, "Content-Type": "application/json" } },
+    );
+  }
+
   const apiKey = (Deno.env.get("AISSTREAM_API_KEY") ?? "").trim();
   if (!apiKey) {
     return new Response(JSON.stringify({ error: "AISSTREAM_API_KEY missing" }), {
@@ -52,10 +87,8 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Optional shared token gate
   const tokenRequired = (Deno.env.get("AIS_SSE_TOKEN") ?? "").trim();
   if (tokenRequired) {
-    const url = new URL(req.url);
     const token = url.searchParams.get("token") ?? "";
     if (token !== tokenRequired) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -65,12 +98,13 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  const boundingBoxes = jsonOrDefault<number[][][]>(Deno.env.get("AIS_BOUNDING_BOXES"), DEFAULT_BBOX);
-  const filterMessageTypes = jsonOrDefault<string[]>(Deno.env.get("AIS_FILTER_MESSAGE_TYPES"), DEFAULT_TYPES);
+  const boundingBoxes = jsonOrDefault<number[][][]>(
+    Deno.env.get("AIS_MMSI_BOUNDING_BOXES"),
+    DEFAULT_BBOX,
+  );
 
   const ws = new WebSocket("wss://stream.aisstream.io/v0/stream");
 
-  /** Set in `start`; used when the HTTP client drops the SSE (ReadableStream cancel). */
   let shutdown: () => void = () => {};
 
   const stream = new ReadableStream<Uint8Array>({
@@ -80,10 +114,6 @@ Deno.serve(async (req: Request) => {
       let closed = false;
       let gotAisMessage = false;
 
-      /**
-       * Client disconnects are normal for SSE (tab close, reconnect, map layer off).
-       * If we enqueue after the socket is gone, Deno logs: "Http: connection closed before message completed".
-       */
       const send = (chunk: string) => {
         if (closed || req.signal.aborted) return;
         try {
@@ -117,7 +147,6 @@ Deno.serve(async (req: Request) => {
       shutdown = closeAll;
       req.signal.addEventListener("abort", closeAll);
 
-      // Keep-alive comments for SSE proxies
       keepAliveId = setInterval(() => {
         if (closed || req.signal.aborted) {
           closeAll();
@@ -127,12 +156,14 @@ Deno.serve(async (req: Request) => {
       }, 15000) as unknown as number;
 
       ws.addEventListener("open", () => {
+        // Docs OpenAPI use `APIKey`; official JS example uses `APIkey` — send both.
         ws.send(
           JSON.stringify({
             APIKey: apiKey,
             APIkey: apiKey,
             BoundingBoxes: boundingBoxes,
-            FilterMessageTypes: filterMessageTypes,
+            FiltersShipMMSI: mmsiList,
+            FilterMessageTypes: DEFAULT_TYPES,
           }),
         );
       });
@@ -140,22 +171,49 @@ Deno.serve(async (req: Request) => {
       ws.addEventListener("message", (ev) => {
         const data = typeof ev.data === "string" ? ev.data : "";
         if (!data) return;
+        try {
+          const j = JSON.parse(data) as Record<string, unknown>;
+          const hasAis = typeof j.MessageType === "string";
+          if (!hasAis) {
+            const err =
+              (typeof j.Error === "string" && j.Error) ||
+              (typeof j.error === "string" && j.error) ||
+              (typeof j.Message === "string" && j.Message);
+            if (err) {
+              send(
+                `event: error\ndata: ${JSON.stringify({
+                  kind: "aisstream_error",
+                  message: String(err),
+                })}\n\n`,
+              );
+              closeAll();
+              return;
+            }
+          }
+        } catch {
+          /* non-JSON or AIS binary — treat as raw below */
+        }
         gotAisMessage = true;
-        // One SSE event per AIS message
         send(`data: ${data.replace(/\n/g, " ")}\n\n`);
       });
 
-      ws.addEventListener("error", () => {
-        /* `close` follows with WebSocket close code (TLS, auth, etc.) */
-      });
+      ws.addEventListener("error", () => {});
 
       ws.addEventListener("close", (ev) => {
         if (!gotAisMessage) {
           const ce = ev as CloseEvent;
+          let code = typeof ce.code === "number" ? ce.code : 0;
+          const reason = typeof ce.reason === "string" ? ce.reason : "";
+          /** Deno often reports `code === 0` when the close frame isn’t surfaced; treat as abnormal. */
+          if (code === 0) code = 1006;
           const payload = JSON.stringify({
             kind: "aisstream_close",
-            code: ce.code,
-            reason: typeof ce.reason === "string" ? ce.reason : "",
+            code,
+            reason,
+            rawCode: typeof ce.code === "number" ? ce.code : undefined,
+            hint:
+              "Upstream closed before any AIS message: invalid API key, subscription rejected, or bbox/MMSI mismatch. " +
+              "Confirm AISSTREAM_API_KEY; set secret AIS_MMSI_BOUNDING_BOXES (JSON) to cover the vessel’s area if needed.",
           });
           send(`event: error\ndata: ${payload}\n\n`);
         }
@@ -176,4 +234,3 @@ Deno.serve(async (req: Request) => {
     },
   });
 });
-

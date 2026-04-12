@@ -33,6 +33,8 @@ interface ImportMetaEnv {
 
   /** Override URL for Live cargo AIS SSE (default: `{VITE_SUPABASE_URL}/functions/v1/ais-sse`) */
   readonly VITE_AIS_SSE_URL?: string;
+  /** Override URL for MMSI-only AIS SSE (default: `{VITE_SUPABASE_URL}/functions/v1/ais-mmsi-sse`) */
+  readonly VITE_AIS_MMSI_SSE_URL?: string;
   /** If Edge Function `ais-sse` uses secret `AIS_SSE_TOKEN`, set the same value here */
   readonly VITE_AIS_SSE_TOKEN?: string;
   /** Dev: WebSocket AIS relay URL (default: same-origin `/api/ais-relay`) */

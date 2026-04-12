@@ -15,6 +15,7 @@ import {
   MessageSquare,
   SatelliteDish,
   Map,
+  Radar,
   Ship,
   Video,
 } from "lucide-react";
@@ -105,6 +106,12 @@ const marketDataItems: MarketDataNavItem[] = [
     url: "/hormuz-tracker",
     icon: Ship,
     description: "Strait of Hormuz trade flow monitor (crude/LNG/transits/fertilizer)",
+  },
+  {
+    title: "MMSI tracker",
+    url: "/mmsi-tracker",
+    icon: Radar,
+    description: "Stream AIS by MMSI list (table; separate from map cargo layer)",
   },
   {
     title: "Situation mondiale",

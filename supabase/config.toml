@@ -32,6 +32,9 @@ verify_jwt = false
 [functions.ais-sse]
 verify_jwt = false
 
+[functions.ais-mmsi-sse]
+verify_jwt = false
+
 [functions.hormuz-tracker]
 verify_jwt = false
 

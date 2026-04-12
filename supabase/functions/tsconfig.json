@@ -8,5 +8,5 @@
     "moduleResolution": "bundler",
     "types": []
   },
-  "include": ["./supabase-edge.d.ts", "./ais-sse/**/*.ts"]
+  "include": ["./supabase-edge.d.ts", "./ais-sse/**/*.ts", "./ais-mmsi-sse/**/*.ts"]
 }
