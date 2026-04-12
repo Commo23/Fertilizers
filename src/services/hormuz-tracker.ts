@@ -1,12 +1,12 @@
+import { config } from '@/config/environment';
+
 function normalizeBaseUrl(base: string): string {
   return base.replace(/\/$/, '');
 }
 
 function getSupabaseFunctionsBase(): string {
-  const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
-  // Default matches env fallbacks in src/config/environment.ts
-  const fallback = 'https://fwjdrsubflqmllkhhdef.supabase.co';
-  return `${normalizeBaseUrl(url || fallback)}/functions/v1`;
+  // Same defaults as `environment.ts` (projet principal + Vercel: VITE_SUPABASE_URL)
+  return `${normalizeBaseUrl(config.supabase.url)}/functions/v1`;
 }
 
 export interface HormuzSeries {
@@ -33,9 +33,14 @@ export interface HormuzTrackerData {
 
 export async function fetchHormuzTracker(): Promise<HormuzTrackerData | null> {
   try {
-    // Supabase Edge Function (verify_jwt=false)
+    const anonKey = config.supabase.anonKey;
+    // Gateway Supabase exige apikey + Bearer (même si verify_jwt=false sur la fonction)
     const resp = await fetch(`${getSupabaseFunctionsBase()}/hormuz-tracker`, {
       signal: AbortSignal.timeout(15_000),
+      headers: {
+        Authorization: `Bearer ${anonKey}`,
+        apikey: anonKey,
+      },
     });
     if (!resp.ok) return null;
     const raw = (await resp.json()) as HormuzTrackerData;

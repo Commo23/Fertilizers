@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "strict": false,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": []
+  },
+  "include": ["./supabase-edge.d.ts", "./ais-sse/**/*.ts"]
+}

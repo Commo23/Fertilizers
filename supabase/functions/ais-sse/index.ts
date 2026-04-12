@@ -1,3 +1,4 @@
+/// <reference path="../supabase-edge.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 function corsHeaders(origin: string | null) {
@@ -5,7 +6,8 @@ function corsHeaders(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, apikey, x-client-info, x-supabase-authorization",
     "Access-Control-Allow-Credentials": "true",
   };
 }
@@ -68,15 +70,27 @@ Deno.serve(async (req: Request) => {
 
   const ws = new WebSocket("wss://stream.aisstream.io/v0/stream");
 
+  /** Set in `start`; used when the HTTP client drops the SSE (ReadableStream cancel). */
+  let shutdown: () => void = () => {};
+
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       const enc = new TextEncoder();
       let keepAliveId: number | null = null;
       let closed = false;
+      let gotAisMessage = false;
 
+      /**
+       * Client disconnects are normal for SSE (tab close, reconnect, map layer off).
+       * If we enqueue after the socket is gone, Deno logs: "Http: connection closed before message completed".
+       */
       const send = (chunk: string) => {
-        if (closed) return;
-        controller.enqueue(enc.encode(chunk));
+        if (closed || req.signal.aborted) return;
+        try {
+          controller.enqueue(enc.encode(chunk));
+        } catch {
+          closeAll();
+        }
       };
 
       const closeAll = () => {
@@ -87,6 +101,7 @@ Deno.serve(async (req: Request) => {
         } catch {
           /* ignore */
         }
+        keepAliveId = null;
         try {
           ws.close();
         } catch {
@@ -99,10 +114,15 @@ Deno.serve(async (req: Request) => {
         }
       };
 
+      shutdown = closeAll;
       req.signal.addEventListener("abort", closeAll);
 
       // Keep-alive comments for SSE proxies
       keepAliveId = setInterval(() => {
+        if (closed || req.signal.aborted) {
+          closeAll();
+          return;
+        }
         send(`: ping ${Date.now()}\n\n`);
       }, 15000) as unknown as number;
 
@@ -119,19 +139,30 @@ Deno.serve(async (req: Request) => {
       ws.addEventListener("message", (ev) => {
         const data = typeof ev.data === "string" ? ev.data : "";
         if (!data) return;
+        gotAisMessage = true;
         // One SSE event per AIS message
         send(`data: ${data.replace(/\n/g, " ")}\n\n`);
       });
 
       ws.addEventListener("error", () => {
-        send(`event: error\ndata: upstream_error\n\n`);
-        closeAll();
+        /* `close` follows with WebSocket close code (TLS, auth, etc.) */
       });
 
-      ws.addEventListener("close", () => {
-        // Let EventSource reconnect
+      ws.addEventListener("close", (ev) => {
+        if (!gotAisMessage) {
+          const ce = ev as CloseEvent;
+          const payload = JSON.stringify({
+            kind: "aisstream_close",
+            code: ce.code,
+            reason: typeof ce.reason === "string" ? ce.reason : "",
+          });
+          send(`event: error\ndata: ${payload}\n\n`);
+        }
         closeAll();
       });
+    },
+    cancel() {
+      shutdown();
     },
   });
 

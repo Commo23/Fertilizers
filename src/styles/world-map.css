@@ -292,11 +292,6 @@
   max-height: none !important;
 }
 
-/* Hide author badge in fullscreen map mode */
-.world-map-section--fullscreen .map-author-badge {
-  display: none !important;
-}
-
 /* Merchant cargo AIS (SVG fallback markers) */
 .merchant-cargo-marker {
   position: absolute;

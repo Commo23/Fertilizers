@@ -657,8 +657,9 @@ export class DeckGLMap {
 
   private initMapLibre(): void {
     if (maplibregl.getRTLTextPluginStatus() === 'unavailable') {
+      // Must be absolute URL on Vercel: catch-all rewrite serves index.html for missing `/public` files.
       maplibregl.setRTLTextPlugin(
-        '/mapbox-gl-rtl-text.min.js',
+        'https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js',
         true,
       );
     }
@@ -4303,11 +4304,6 @@ export class DeckGLMap {
         }).join('')}
       </div>
     `;
-
-    const authorBadge = document.createElement('div');
-    authorBadge.className = 'map-author-badge';
-    authorBadge.textContent = '© Elie Habib · Someone™';
-    toggles.appendChild(authorBadge);
 
     this.container.appendChild(toggles);
 

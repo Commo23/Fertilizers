@@ -1,4 +1,5 @@
 import type { MerchantCargoVessel } from "@/types";
+import { config } from "@/config/environment";
 import { mmsiToCountry } from "@/utils/mmsi-mid";
 
 const MAX_VESSELS = 8000;
@@ -131,6 +132,168 @@ export function getMerchantAisSseUrl(): string | null {
   return configured ? configured : null;
 }
 
+/** Supabase Edge Function `ais-sse` — même projet que `environment.ts`. */
+export function resolveMerchantAisSseUrl(): string {
+  const explicit = getMerchantAisSseUrl();
+  if (explicit) return explicit;
+  const base = config.supabase.url.replace(/\/$/, "");
+  return `${base}/functions/v1/ais-sse`;
+}
+
+const SSE_RECONNECT_MS = 3000;
+
+function normalizeSseText(s: string): string {
+  return s.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+async function consumeAisSseStream(
+  body: ReadableStream<Uint8Array>,
+  onData: (line: string) => void,
+  onSseError: (payload: string) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  const reader = body.getReader();
+  const dec = new TextDecoder();
+  let pending = "";
+
+  const emitBlocks = (): void => {
+    let sep: number;
+    while ((sep = pending.indexOf("\n\n")) !== -1) {
+      const block = pending.slice(0, sep);
+      pending = pending.slice(sep + 2);
+      const trimmed = block.trim();
+      if (!trimmed || trimmed.startsWith(":")) continue;
+      let eventName = "message";
+      for (const line of trimmed.split("\n")) {
+        if (line.startsWith("event:")) {
+          eventName = line.slice(6).trim();
+        } else if (line.startsWith("data:")) {
+          const payload = line.slice(5).trim();
+          if (!payload) continue;
+          if (eventName === "error") onSseError(payload);
+          else onData(payload);
+        }
+      }
+    }
+  };
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (value) {
+        pending = normalizeSseText(pending + dec.decode(value, { stream: true }));
+        if (signal.aborted) break;
+        emitBlocks();
+      }
+      if (done) {
+        pending = normalizeSseText(pending + dec.decode());
+        emitBlocks();
+        break;
+      }
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function connectMerchantAisSseFetch(
+  url: string,
+  onRawMessage: (raw: string) => void,
+  onDisconnect: () => void,
+): () => void {
+  const anonKey = config.supabase.anonKey;
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${anonKey}`,
+    apikey: anonKey,
+  };
+  const token = String(import.meta.env.VITE_AIS_SSE_TOKEN ?? "").trim();
+  const requestUrl = token ? `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}` : url;
+
+  let cancelled = false;
+  let abort: AbortController | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const clearReconnect = () => {
+    if (reconnectTimer != null) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  };
+
+  const run = async () => {
+    while (!cancelled) {
+      abort?.abort();
+      abort = new AbortController();
+      try {
+        const res = await fetch(requestUrl, {
+          method: "GET",
+          mode: "cors",
+          headers,
+          signal: abort.signal,
+          cache: "no-store",
+        });
+        if (!res.ok || !res.body) {
+          if (import.meta.env.VITE_DEBUG_MERCHANT_AIS === "1") {
+            const errText = await res.text().catch(() => "");
+            console.warn(
+              "[merchant-ais] ais-sse non-OK",
+              res.status,
+              requestUrl,
+              errText.slice(0, 500),
+            );
+          }
+          await new Promise((r) => setTimeout(r, SSE_RECONNECT_MS));
+          continue;
+        }
+        let warnedUpstream = false;
+        const onSseError = (payload: string) => {
+          if (warnedUpstream) return;
+          warnedUpstream = true;
+          let detail: string = payload;
+          try {
+            const j = JSON.parse(payload) as { kind?: string; code?: number; reason?: string };
+            if (j.kind === "aisstream_close" && typeof j.code === "number") {
+              detail = `AISStream closed (code ${j.code}${j.reason ? `: ${j.reason}` : ""}). Check AISSTREAM_API_KEY secret on Edge Function ais-sse, quota, or AISStream status.`;
+            } else {
+              detail = JSON.stringify(j);
+            }
+          } catch {
+            if (payload === "upstream_error") {
+              detail =
+                "upstream_error — WebSocket to AISStream failed (set AISSTREAM_API_KEY on ais-sse, check Supabase logs).";
+            }
+          }
+          console.warn("[merchant-ais]", detail);
+        };
+        await consumeAisSseStream(res.body, onRawMessage, onSseError, abort.signal);
+      } catch {
+        /* aborted or network */
+      }
+      if (cancelled) break;
+      await new Promise<void>((r) => {
+        reconnectTimer = setTimeout(r, SSE_RECONNECT_MS);
+      });
+    }
+  };
+
+  void run();
+
+  return () => {
+    cancelled = true;
+    clearReconnect();
+    try {
+      abort?.abort();
+    } catch {
+      /* ignore */
+    }
+    onDisconnect();
+  };
+}
+
 /**
  * Subscribes to the dev AIS relay, parses AIS JSON, and pushes throttled vessel lists.
  * @returns disconnect function
@@ -169,39 +332,15 @@ export function connectMerchantAisStream(onUpdate: (vessels: MerchantCargoVessel
     }, FLUSH_MS);
   };
 
-  // ── Production path: Supabase Edge Function streaming via SSE ──────────────
-  const sseUrl = getMerchantAisSseUrl();
-  if (sseUrl && !import.meta.env.DEV) {
-    let es: EventSource | null = null;
-    try {
-      es = new EventSource(sseUrl);
-    } catch {
-      return () => undefined;
-    }
-
-    if (import.meta.env.DEV) {
-      es.addEventListener("open", () => console.debug("[merchant-ais] SSE connected"));
-    }
-
-    es.addEventListener("message", (ev) => {
-      if (typeof ev.data === "string" && ev.data) onRawMessage(ev.data);
-    });
-
-    es.addEventListener("error", () => {
-      // EventSource auto-reconnects; keep UI stable.
-    });
-
-    return () => {
-      try {
-        es?.close();
-      } catch {
-        /* ignore */
-      }
+  // ── Production: Supabase Edge `ais-sse` (fetch + stream; EventSource cannot send apikey) ──
+  if (!import.meta.env.DEV) {
+    const sseUrl = resolveMerchantAisSseUrl();
+    return connectMerchantAisSseFetch(sseUrl, onRawMessage, () => {
       if (flushTimer != null) clearTimeout(flushTimer);
-    };
+    });
   }
 
-  // ── Dev path: WebSocket relay (Vite plugin) ───────────────────────────────
+  // ── Dev: WebSocket relay (Vite plugin) ─────────────────────────────────────
   let ws: WebSocket;
   try {
     ws = new WebSocket(getMerchantAisWebSocketUrl());
