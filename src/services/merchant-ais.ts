@@ -142,6 +142,10 @@ export function resolveMerchantAisSseUrl(): string {
 
 const SSE_RECONNECT_MS = 3000;
 
+function normalizeSseText(s: string): string {
+  return s.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
 async function consumeAisSseStream(
   body: ReadableStream<Uint8Array>,
   onData: (line: string) => void,
@@ -150,24 +154,35 @@ async function consumeAisSseStream(
   const reader = body.getReader();
   const dec = new TextDecoder();
   let pending = "";
+
+  const emitBlocks = (): void => {
+    let sep: number;
+    while ((sep = pending.indexOf("\n\n")) !== -1) {
+      const block = pending.slice(0, sep);
+      pending = pending.slice(sep + 2);
+      const trimmed = block.trim();
+      if (!trimmed || trimmed.startsWith(":")) continue;
+      for (const line of trimmed.split("\n")) {
+        if (line.startsWith("data:")) {
+          const payload = line.slice(5).trim();
+          if (payload) onData(payload);
+        }
+      }
+    }
+  };
+
   try {
     for (;;) {
       const { done, value } = await reader.read();
-      if (done) break;
-      if (signal.aborted) break;
-      pending += dec.decode(value, { stream: true });
-      let sep: number;
-      while ((sep = pending.indexOf("\n\n")) !== -1) {
-        const block = pending.slice(0, sep);
-        pending = pending.slice(sep + 2);
-        const trimmed = block.trim();
-        if (!trimmed || trimmed.startsWith(":")) continue;
-        for (const line of trimmed.split("\n")) {
-          if (line.startsWith("data:")) {
-            const payload = line.slice(5).trimStart();
-            if (payload) onData(payload);
-          }
-        }
+      if (value) {
+        pending = normalizeSseText(pending + dec.decode(value, { stream: true }));
+        if (signal.aborted) break;
+        emitBlocks();
+      }
+      if (done) {
+        pending = normalizeSseText(pending + dec.decode());
+        emitBlocks();
+        break;
       }
     }
   } finally {
@@ -210,11 +225,21 @@ function connectMerchantAisSseFetch(
       try {
         const res = await fetch(requestUrl, {
           method: "GET",
+          mode: "cors",
           headers,
           signal: abort.signal,
           cache: "no-store",
         });
         if (!res.ok || !res.body) {
+          if (import.meta.env.VITE_DEBUG_MERCHANT_AIS === "1") {
+            const errText = await res.text().catch(() => "");
+            console.warn(
+              "[merchant-ais] ais-sse non-OK",
+              res.status,
+              requestUrl,
+              errText.slice(0, 500),
+            );
+          }
           await new Promise((r) => setTimeout(r, SSE_RECONNECT_MS));
           continue;
         }

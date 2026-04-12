@@ -37,6 +37,10 @@ interface ImportMetaEnv {
   readonly VITE_AIS_SSE_TOKEN?: string;
   /** Dev: WebSocket AIS relay URL (default: same-origin `/api/ais-relay`) */
   readonly VITE_AIS_RELAY_URL?: string;
+  /** Set to `1` to log ais-sse HTTP errors in the browser console (prod debugging). */
+  readonly VITE_DEBUG_MERCHANT_AIS?: string;
+  /** Optional URL for country polygons GeoJSON (default: WorldMonitor maps CDN). */
+  readonly VITE_COUNTRY_GEOJSON_URL?: string;
 
   /** If true and VITE_RSS_RELAY_BASE is set, RSS uses that relay in production (not WorldMonitor-specific). */
   readonly VITE_RSS_DIRECT_TO_RELAY?: string;
