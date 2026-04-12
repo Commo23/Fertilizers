@@ -5,7 +5,8 @@ function corsHeaders(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, apikey, x-client-info, x-supabase-authorization",
     "Access-Control-Allow-Credentials": "true",
   };
 }

@@ -97,7 +97,7 @@ export default function WorldMap() {
     };
   }, [mapReady]);
 
-  /** Cargo / tanker AIS (AISStream via Vite relay — set env `AISSTREAM_API_KEY` for `npm run dev`). */
+  /** Cargo / tanker AIS — dev: Vite WS relay; prod: Supabase Edge `ais-sse` (+ `AISSTREAM_API_KEY` côté Supabase). */
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
