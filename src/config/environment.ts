@@ -1,9 +1,14 @@
 // Configuration de l'environnement
+/** Default = projet principal Fx (Edge Functions: hormuz-tracker, scrape-*, ais-sse, …). Sur Vercel, préférer `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`. */
+const DEFAULT_SUPABASE_URL = 'https://iflnsckduohrcafafcpj.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmbG5zY2tkdW9ocmNhZmFmY3BqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3MDk1MjQsImV4cCI6MjA4MzI4NTUyNH0.y2mWIp_p0zmj0rhI6kQJBOzAuwpZND1QLwEZ8PeIMTg';
+
 export const config = {
   // Supabase Configuration
   supabase: {
-    url: import.meta.env.VITE_SUPABASE_URL || 'https://fwjdrsubflqmllkhhdef.supabase.co',
-    anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ3amRyc3ViZmxxbWxsa2hoZGVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA2MjY2OTAsImV4cCI6MjA3NjIwMjY5MH0.0p6Dn7upz3-beCUVO1aVVBUj64ThBujci6imrIljxsA'
+    url: import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL,
+    anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY,
   },
   
   // Application Configuration
