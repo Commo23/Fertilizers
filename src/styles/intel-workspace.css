@@ -1,0 +1,14 @@
+/* react-grid-layout — workspace unique (carte + panneaux déplaçables) */
+.intel-workspace-grid .react-grid-item.react-grid-placeholder {
+  background: hsl(var(--primary) / 0.12);
+  border-radius: 0.5rem;
+  border: 1px dashed hsl(var(--primary) / 0.35);
+}
+
+.intel-workspace-grid .react-grid-item > .react-resizable-handle::after {
+  border-color: hsl(var(--muted-foreground) / 0.45);
+}
+
+.intel-workspace-grid .react-grid-item {
+  transition: none;
+}

@@ -18,7 +18,10 @@ import type { MerchantCargoVessel } from "@/types";
 
 const LIVE_DATA_INTERVAL_MS = 5 * 60 * 1000;
 
-export default function WorldMap() {
+export type WorldMapContentProps = { embedded?: boolean };
+
+/** Carte mondiale (sans `Layout`) — réutilisable dans le workspace. */
+export function WorldMapContent({ embedded = false }: WorldMapContentProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapContainer | null>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
@@ -248,26 +251,24 @@ export default function WorldMap() {
   }, [isFullscreen, scheduleResize]);
 
   return (
-    <Layout
-      title="Situation mondiale"
-      breadcrumbs={[
-        { label: "Commodity Market", href: "/commodity-market" },
-        { label: "Situation mondiale" },
-      ]}
-    >
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Globe className="h-8 w-8 text-primary shrink-0" />
-          <h1 className="text-3xl font-bold text-foreground">Situation mondiale</h1>
-        </div>
-        <p className="text-muted-foreground text-sm max-w-3xl">
-          Carte 2D (DeckGL / SVG) ou globe 3D (globe.gl). Le choix est mémorisé comme dans WorldMonitor.
-        </p>
+    <div className={cn("space-y-3", embedded && "space-y-2 h-full min-h-0 flex flex-col")}>
+      {!embedded && (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <Globe className="h-8 w-8 text-primary shrink-0" />
+            <h1 className="text-3xl font-bold text-foreground">Situation mondiale</h1>
+          </div>
+          <p className="text-muted-foreground text-sm max-w-3xl">
+            Carte 2D (DeckGL / SVG) ou globe 3D (globe.gl). Le choix est mémorisé comme dans WorldMonitor.
+          </p>
+        </>
+      )}
 
         <div
           ref={sectionRef}
           className={cn(
             "world-map-section flex flex-col gap-2 min-h-0",
+            embedded && "flex-1 min-h-[320px]",
             isFullscreen && "world-map-section--fullscreen",
           )}
         >
@@ -437,11 +438,25 @@ export default function WorldMap() {
             ref={hostRef}
             className={cn(
               "world-map-host w-full border bg-card",
+              embedded && "min-h-[280px] flex-1",
               isFullscreen && "world-map-host--flex-fill",
             )}
           />
         </div>
-      </div>
+    </div>
+  );
+}
+
+export default function WorldMap() {
+  return (
+    <Layout
+      title="Situation mondiale"
+      breadcrumbs={[
+        { label: "Commodity Market", href: "/commodity-market" },
+        { label: "Situation mondiale" },
+      ]}
+    >
+      <WorldMapContent />
     </Layout>
   );
 }

@@ -6,18 +6,10 @@ import {
   Settings,
   Users,
   Database,
-  Newspaper,
-  Rss,
-  Radio,
-  Calendar,
-  LineChart,
   Percent,
   MessageSquare,
-  SatelliteDish,
-  Map,
+  LayoutGrid,
   Radar,
-  Ship,
-  Video,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -43,16 +35,11 @@ import { SyncIndicator } from "./SyncIndicator";
 import { BRAND } from "@/constants/branding";
 import "@/styles/sidebar-zoom.css";
 
-const WORLD_MONITOR_URL =
-  import.meta.env.VITE_WORLD_MONITOR_URL?.trim() || "http://localhost:3000";
-
 type MarketDataNavItem = {
   title: string;
   url: string;
   icon: LucideIcon;
   description: string;
-  /** Opens in a new tab (separate app, e.g. WorldMonitor) */
-  externalHref?: string;
 };
 
 // Dashboard - Standalone
@@ -66,6 +53,13 @@ const dashboardItem = {
 // Market Data & News Group
 const marketDataItems: MarketDataNavItem[] = [
   {
+    title: "Intelligence workspace",
+    url: "/intel-workspace",
+    icon: LayoutGrid,
+    description:
+      "Carte, Live TV, webcams, news, graphique avancé, Hormuz, calendrier, flux matières premières (grille déplaçable)",
+  },
+  {
     title: "Commodity Market",
     url: "/commodity-market",
     icon: Globe,
@@ -78,65 +72,10 @@ const marketDataItems: MarketDataNavItem[] = [
     description: "Interest rate futures, IRS & yield curve bootstrapping"
   },
   {
-    title: "Market News",
-    url: "/market-news",
-    icon: Newspaper,
-    description: "Latest commodity market news and insights"
-  },
-  {
-    title: "Commodity News",
-    url: "/commodity-news",
-    icon: Rss,
-    description: "RSS: metals, energy, mining, supply chain, regulation"
-  },
-  {
-    title: "Live news",
-    url: "/live-news",
-    icon: Radio,
-    description: "TV news channels (24/7 streams)"
-  },
-  {
-    title: "Live webcams",
-    url: "/live-webcams",
-    icon: Video,
-    description: "Global live webcams (YouTube grid, WorldMonitor-style)"
-  },
-  {
-    title: "Hormuz tracker",
-    url: "/hormuz-tracker",
-    icon: Ship,
-    description: "Strait of Hormuz trade flow monitor (crude/LNG/transits/fertilizer)",
-  },
-  {
     title: "MMSI tracker",
     url: "/mmsi-tracker",
     icon: Radar,
     description: "Stream AIS by MMSI list (table; separate from map cargo layer)",
-  },
-  {
-    title: "Situation mondiale",
-    url: "/world-map",
-    icon: Map,
-    description: "Carte mondiale (WorldMonitor-style): couches, DeckGL / globe"
-  },
-  {
-    title: "World news",
-    url: "/world-monitor",
-    icon: SatelliteDish,
-    description: "WorldMonitor — global news (separate app, opens in new tab)",
-    externalHref: WORLD_MONITOR_URL,
-  },
-  {
-    title: "Economic Calendar",
-    url: "/economic-calendar",
-    icon: Calendar,
-    description: "Track economic events impacting commodity markets"
-  },
-  {
-    title: "Advanced Chart",
-    url: "/advanced-chart",
-    icon: LineChart,
-    description: "Interactive trading chart with technical analysis"
   },
   {
     title: "Hedge Assistant",
@@ -259,29 +198,13 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    isActive={item.externalHref ? false : isActive(item.url)}
+                    isActive={isActive(item.url)}
                     className="group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all hover:bg-accent hover:text-accent-foreground sidebar-menu-button"
                   >
-                    {item.externalHref ? (
-                      <a
-                        href={item.externalHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={item.description}
-                        className="flex w-full items-center gap-3"
-                      >
-                        <item.icon className="h-4 w-4 shrink-0 sidebar-icon" />
-                        <span className="flex-1">{item.title}</span>
-                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground opacity-70">
-                          ↗
-                        </span>
-                      </a>
-                    ) : (
-                      <Link to={item.url} className="flex w-full items-center gap-3">
-                        <item.icon className="h-4 w-4 shrink-0 sidebar-icon" />
-                        <span className="flex-1">{item.title}</span>
-                      </Link>
-                    )}
+                    <Link to={item.url} className="flex w-full items-center gap-3">
+                      <item.icon className="h-4 w-4 shrink-0 sidebar-icon" />
+                      <span className="flex-1">{item.title}</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

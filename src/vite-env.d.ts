@@ -1,9 +1,6 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Base URL of the WorldMonitor app (separate project), e.g. http://localhost:5174 */
-  readonly VITE_WORLD_MONITOR_URL?: string;
-
   /** Projet Supabase principal — Auth & données utilisateur */
   readonly VITE_SUPABASE_URL?: string;
   readonly VITE_SUPABASE_ANON_KEY?: string;
