@@ -1,13 +1,6 @@
-/** Shim for IDE: `Deno` is provided by Supabase Edge (Deno) at runtime; app tsconfig has no Deno types. */
-declare const Deno: {
-  serve: (handler: (req: Request) => Response | Promise<Response>) => void;
-};
-
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Max-Age': '86400',
   };
   
   // ============================================================================
