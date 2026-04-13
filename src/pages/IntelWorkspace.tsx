@@ -18,6 +18,7 @@ import { getEffectivePanelConfig } from "@/config/panels";
 import { LiveNewsPanel } from "@/components/LiveNewsPanel";
 import { LiveWebcamsPanel } from "@/components/LiveWebcamsPanel";
 import { HormuzPanel } from "@/components/Hormuz/HormuzPanel";
+import { CommodityMarketPricesPanel } from "@/components/CommodityMarketPricesPanel";
 import "@/styles/live-news-panel.css";
 import "@/styles/live-webcams-panel.css";
 import "@/styles/hormuz-panel.css";
@@ -25,9 +26,9 @@ import "@/styles/intel-workspace.css";
 import { GripVertical, LayoutGrid, RotateCcw } from "lucide-react";
 import { loadFromStorage, saveToStorage } from "@/utils";
 
-const STORAGE_KEY = "fx_intel_workspace_layout_v5";
+const STORAGE_KEY = "fx_intel_workspace_layout_v6";
 
-/** Carte, puis Live TV + webcams, puis Market / Calendrier / Hormuz, puis 9 flux commodity, puis graphique avancé (pleine largeur). */
+/** Carte, puis Live TV + webcams, puis Market / Calendrier / Hormuz, puis 9 flux commodity, puis graphique avancé + prix commodities. */
 const DEFAULT_LAYOUT: Layout = [
   { i: "world-map", x: 0, y: 0, w: 12, h: 20, minW: 6, minH: 12 },
   { i: "live-news", x: 0, y: 20, w: 6, h: 10, minW: 4, minH: 7 },
@@ -45,6 +46,7 @@ const DEFAULT_LAYOUT: Layout = [
   { i: "commodity-regulation", x: 4, y: 58, w: 4, h: 9, minW: 3, minH: 5 },
   { i: "commodity-fertilizer-news", x: 8, y: 58, w: 4, h: 9, minW: 3, minH: 5 },
   { i: "advanced-chart", x: 0, y: 67, w: 12, h: 14, minW: 6, minH: 10 },
+  { i: "commodity-prices", x: 0, y: 81, w: 12, h: 12, minW: 6, minH: 8 },
 ];
 
 function loadLayout(): Layout {
@@ -257,6 +259,12 @@ export default function IntelWorkspace() {
             <div key="advanced-chart" className="min-h-0">
               <WorkspacePanelChrome title="Advanced Chart" className="h-full min-h-[320px]">
                 <AdvancedChartContent compact />
+              </WorkspacePanelChrome>
+            </div>
+
+            <div key="commodity-prices" className="min-h-0">
+              <WorkspacePanelChrome title="Commodity prices" className="h-full min-h-[280px]">
+                <CommodityMarketPricesPanel />
               </WorkspacePanelChrome>
             </div>
           </ReactGridLayout>
