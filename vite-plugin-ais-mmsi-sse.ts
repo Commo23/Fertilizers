@@ -4,6 +4,7 @@
  */
 import { loadEnv, type Plugin, type ViteDevServer } from "vite";
 import { WebSocket } from "ws";
+import { acquireMmsi, releaseMmsi } from "./ais-connection-lock.js";
 
 function jsonOrDefault<T>(value: string | undefined, fallback: T): T {
   try {
@@ -15,10 +16,12 @@ function jsonOrDefault<T>(value: string | undefined, fallback: T): T {
 }
 
 const DEFAULT_BBOX: number[][][] = [
-  [
-    [20, -25],
-    [40, 5],
-  ],
+  [[30, -80], [60, 0]],
+  [[25, -5], [50, 45]],
+  [[-10, -70], [30, 20]],
+  [[-10, 30], [35, 80]],
+  [[0, 80], [50, 145]],
+  [[10, -180], [60, -100]],
 ];
 
 const DEFAULT_TYPES = [
@@ -49,7 +52,7 @@ export function aisMmsiSseRelayPlugin(): Plugin {
     name: "ais-mmsi-sse-relay",
     enforce: "pre",
     configureServer(server: ViteDevServer) {
-      server.middlewares.use((req, res, next) => {
+      server.middlewares.use(async (req, res, next) => {
         const fullUrl = req.url ?? "";
         const path = fullUrl.split("?")[0]?.replace(/\/$/, "") ?? "";
         if (path !== "/api/ais-mmsi-sse") {
@@ -117,6 +120,11 @@ export function aisMmsiSseRelayPlugin(): Plugin {
         res.setHeader("Connection", "keep-alive");
         res.flushHeaders?.();
 
+        acquireMmsi();
+        log.info("[ais-mmsi-sse] Acquired AISStream lock — waiting for relay to release…");
+
+        await new Promise((r) => setTimeout(r, 3000));
+
         const ws = new WebSocket("wss://stream.aisstream.io/v0/stream");
         let ended = false;
         let gotAisMessage = false;
@@ -124,6 +132,7 @@ export function aisMmsiSseRelayPlugin(): Plugin {
         const endRes = () => {
           if (ended) return;
           ended = true;
+          releaseMmsi();
           try {
             ws.close();
           } catch {
@@ -157,8 +166,7 @@ export function aisMmsiSseRelayPlugin(): Plugin {
         ws.on("open", () => {
           ws.send(
             JSON.stringify({
-              APIKey: apiKey,
-              APIkey: apiKey,
+              Apikey: apiKey,
               BoundingBoxes: boundingBoxes,
               FiltersShipMMSI: mmsiList,
               FilterMessageTypes: DEFAULT_TYPES,
@@ -170,14 +178,19 @@ export function aisMmsiSseRelayPlugin(): Plugin {
         ws.on("message", (data) => {
           const s = data.toString();
           if (!s) return;
+          if (!gotAisMessage) {
+            log.info(`[ais-mmsi-sse] first upstream message (${s.length} bytes): ${s.slice(0, 300)}`);
+          }
           try {
             const j = JSON.parse(s) as Record<string, unknown>;
             const hasAis = typeof j.MessageType === "string";
             if (!hasAis) {
               const err =
                 (typeof j.Error === "string" && j.Error) ||
-                (typeof j.error === "string" && j.error);
+                (typeof j.error === "string" && j.error) ||
+                (typeof j.Message === "string" && j.Message);
               if (err) {
+                log.warn(`[ais-mmsi-sse] AISStream error: ${err}`);
                 send(
                   `event: error\ndata: ${JSON.stringify({ kind: "aisstream_error", message: String(err) })}\n\n`,
                 );
@@ -185,9 +198,10 @@ export function aisMmsiSseRelayPlugin(): Plugin {
                 endRes();
                 return;
               }
+              log.warn(`[ais-mmsi-sse] unknown upstream JSON: ${s.slice(0, 300)}`);
             }
           } catch {
-            /* raw line */
+            log.warn(`[ais-mmsi-sse] non-JSON upstream: ${s.slice(0, 200)}`);
           }
           gotAisMessage = true;
           send(`data: ${s.replace(/\n/g, " ")}\n\n`);
@@ -195,14 +209,15 @@ export function aisMmsiSseRelayPlugin(): Plugin {
 
         ws.on("close", (code, reason) => {
           clearInterval(keepAlive);
+          const c = typeof code === "number" ? code : 0;
+          const r = reason instanceof Buffer ? reason.toString() : String(reason ?? "");
+          log.warn(`[ais-mmsi-sse] WS closed: code=${c} reason="${r}" gotData=${gotAisMessage}`);
           if (!ended && !gotAisMessage) {
-            let c = typeof code === "number" ? code : 0;
-            const r = reason instanceof Buffer ? reason.toString() : String(reason ?? "");
-            if (c === 0) c = 1006;
+            const finalCode = c === 0 ? 1006 : c;
             send(
               `event: error\ndata: ${JSON.stringify({
                 kind: "aisstream_close",
-                code: c,
+                code: finalCode,
                 reason: r,
                 hint:
                   "[dev relay] Upstream closed before any AIS message — check AISSTREAM_API_KEY and AIS_MMSI_BOUNDING_BOXES in .env",
@@ -214,7 +229,7 @@ export function aisMmsiSseRelayPlugin(): Plugin {
 
         ws.on("error", (err) => {
           clearInterval(keepAlive);
-          log.warn(`[ais-mmsi-sse] upstream ws error: ${err instanceof Error ? err.message : String(err)}`);
+          log.warn(`[ais-mmsi-sse] WS error: ${err instanceof Error ? err.message : String(err)}`);
           if (!ended && !gotAisMessage) {
             send(
               `event: error\ndata: ${JSON.stringify({

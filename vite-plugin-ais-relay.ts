@@ -11,6 +11,7 @@ import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { loadEnv, type Plugin, type ViteDevServer } from "vite";
 import { WebSocketServer, WebSocket } from "ws";
+import { isMmsiActive, onMmsiStart, onMmsiStop } from "./ais-connection-lock.js";
 
 /**
  * Single small bbox keeps AIS traffic low (avoids AISStream closing with 1006 on overload).
@@ -61,7 +62,13 @@ export function aisRelayPlugin(): Plugin {
         let attempt = 0;
         let msgCount = 0;
 
+        let paused = false;
+
         const connectUpstream = () => {
+          if (paused || isMmsiActive()) {
+            log.info("[ais-relay] Skipping connect — MMSI tracker is active");
+            return;
+          }
           attempt++;
           log.info(`[ais-relay] Connecting to AISStream (attempt ${attempt}, key=${keyPreview})…`);
           const ws = new WebSocket("wss://stream.aisstream.io/v0/stream");
@@ -70,7 +77,7 @@ export function aisRelayPlugin(): Plugin {
           ws.on("open", () => {
             log.info("[ais-relay] Upstream OPEN — sending subscription…");
             const payload = {
-              APIKey: apiKey,
+              Apikey: apiKey,
               BoundingBoxes: DEFAULT_BOUNDING_BOXES,
               FilterMessageTypes: [...POSITION_MESSAGE_TYPES],
             };
@@ -96,12 +103,12 @@ export function aisRelayPlugin(): Plugin {
           ws.on("close", (code, reason) => {
             const r = reason instanceof Buffer ? reason.toString() : String(reason ?? "");
             log.info(`[ais-relay] Upstream closed code=${code} reason=${r} (after ${msgCount} msgs)`);
-            if (code === 1006) {
+            if (code === 1006 && !paused) {
               log.warn(
                 "[ais-relay] 1006 = abnormal close. Possible causes: invalid API key, AISStream rate-limit, or network drop.",
               );
             }
-            scheduleReconnect();
+            if (!paused) scheduleReconnect();
           });
 
           ws.on("error", (err) => {
@@ -110,15 +117,40 @@ export function aisRelayPlugin(): Plugin {
         };
 
         const scheduleReconnect = () => {
-          if (clientWs.readyState !== WebSocket.OPEN) return;
+          if (clientWs.readyState !== WebSocket.OPEN || paused || isMmsiActive()) return;
           const delay = Math.min(2000 * Math.pow(2, attempt), 30_000);
           log.info(`[ais-relay] Will reconnect in ${delay}ms (attempt ${attempt + 1})…`);
           reconnectTimer = setTimeout(() => {
-            if (clientWs.readyState === WebSocket.OPEN) connectUpstream();
+            if (clientWs.readyState === WebSocket.OPEN && !paused) connectUpstream();
           }, delay);
         };
 
-        connectUpstream();
+        const pauseRelay = () => {
+          paused = true;
+          if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+          if (upstream && upstream.readyState === WebSocket.OPEN) {
+            log.info("[ais-relay] Pausing — closing upstream for MMSI tracker");
+            upstream.close();
+          }
+        };
+
+        const resumeRelay = () => {
+          paused = false;
+          attempt = 0;
+          log.info("[ais-relay] Resuming — MMSI tracker done");
+          if (clientWs.readyState === WebSocket.OPEN) {
+            setTimeout(() => connectUpstream(), 2000);
+          }
+        };
+
+        onMmsiStart(pauseRelay);
+        onMmsiStop(resumeRelay);
+
+        if (!isMmsiActive()) {
+          connectUpstream();
+        } else {
+          log.info("[ais-relay] MMSI tracker already active — waiting");
+        }
 
         clientWs.on("message", (data) => {
           try {
@@ -133,7 +165,7 @@ export function aisRelayPlugin(): Plugin {
               upstream?.readyState === WebSocket.OPEN
             ) {
               const payload = {
-                APIKey: apiKey,
+                Apikey: apiKey,
                 BoundingBoxes: msg.boundingBoxes,
                 FilterMessageTypes: [...POSITION_MESSAGE_TYPES],
               };

@@ -21,11 +21,14 @@ function jsonOrDefault<T>(value: string | null, fallback: T): T {
   }
 }
 
-/**
- * Default bbox aligned with `ais-sse` (Morocco + approaches). AISStream may drop
- * subscriptions that are too large (e.g. full world). Override via `AIS_MMSI_BOUNDING_BOXES`.
- */
-const DEFAULT_BBOX: number[][][] = [[[20, -25], [40, 5]]];
+const DEFAULT_BBOX: number[][][] = [
+  [[30, -80], [60, 0]],
+  [[25, -5], [50, 45]],
+  [[-10, -70], [30, 20]],
+  [[-10, 30], [35, 80]],
+  [[0, 80], [50, 145]],
+  [[10, -180], [60, -100]],
+];
 
 const DEFAULT_TYPES = [
   "PositionReport",
@@ -156,11 +159,9 @@ Deno.serve(async (req: Request) => {
       }, 15000) as unknown as number;
 
       ws.addEventListener("open", () => {
-        // Docs OpenAPI use `APIKey`; official JS example uses `APIkey` — send both.
         ws.send(
           JSON.stringify({
-            APIKey: apiKey,
-            APIkey: apiKey,
+            Apikey: apiKey,
             BoundingBoxes: boundingBoxes,
             FiltersShipMMSI: mmsiList,
             FilterMessageTypes: DEFAULT_TYPES,

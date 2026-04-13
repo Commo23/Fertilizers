@@ -283,6 +283,7 @@ export function connectMmsiAisTableStream(
     while (!cancelled) {
       abort?.abort();
       abort = new AbortController();
+      console.info("[mmsi-ais-table] connecting:", requestUrl.replace(/token=[^&]+/, "token=***"));
       try {
         const res = await fetch(requestUrl, {
           method: "GET",
@@ -292,6 +293,7 @@ export function connectMmsiAisTableStream(
           cache: "no-store",
         });
         if (!res.ok || !res.body) {
+          console.warn("[mmsi-ais-table] HTTP", res.status, res.statusText);
           const errText = await res.text().catch(() => "");
           let msg = `HTTP ${res.status}`;
           try {
@@ -332,8 +334,12 @@ export function connectMmsiAisTableStream(
           console.warn("[mmsi-ais-table]", detail);
         };
         await consumeAisSseStream(res.body, onRaw, onSseError, abort.signal);
-      } catch {
-        /* aborted */
+      } catch (err) {
+        if (!cancelled && !(err instanceof DOMException && err.name === "AbortError")) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn("[mmsi-ais-table] fetch/stream error:", msg);
+          onStreamError?.(`Connection error: ${msg}`);
+        }
       }
       if (cancelled) break;
       await new Promise<void>((r) => {

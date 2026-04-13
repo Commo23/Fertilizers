@@ -129,8 +129,7 @@ Deno.serve(async (req: Request) => {
       ws.addEventListener("open", () => {
         ws.send(
           JSON.stringify({
-            APIKey: apiKey,
-            APIkey: apiKey,
+            Apikey: apiKey,
             BoundingBoxes: boundingBoxes,
             FilterMessageTypes: filterMessageTypes,
           }),
