@@ -234,21 +234,31 @@ export function WorldMapContent({ embedded = false }: WorldMapContentProps) {
   );
 
   const toggleFullscreen = useCallback(() => {
-    setIsFullscreen((v) => !v);
-    scheduleResize();
+    const el = sectionRef.current;
+    if (!el) return;
+    try {
+      if (document.fullscreenElement) {
+        void document.exitFullscreen();
+      } else {
+        void el.requestFullscreen({ navigationUI: "hide" });
+      }
+    } catch (e) {
+      // Fallback: keep CSS "fullscreen" mode if the API fails (permissions / iframe / etc.)
+      setIsFullscreen((v) => !v);
+      scheduleResize();
+      if (import.meta.env.DEV) console.warn("[WorldMap] fullscreen failed, using css fallback", e);
+    }
   }, [scheduleResize]);
 
   useEffect(() => {
-    if (!isFullscreen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setIsFullscreen(false);
-        scheduleResize();
-      }
+    const onChange = () => {
+      const isFs = Boolean(document.fullscreenElement);
+      setIsFullscreen(isFs);
+      scheduleResize();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isFullscreen, scheduleResize]);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, [scheduleResize]);
 
   return (
     <div className={cn("space-y-3", embedded && "space-y-2 h-full min-h-0 flex flex-col")}>
